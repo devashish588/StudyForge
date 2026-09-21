@@ -8,6 +8,7 @@ import {
 } from "@/lib/date";
 import { calculateStreak, type FocusPriority } from "@/lib/study";
 import { ensureDay } from "@/lib/credit";
+import { ensureUser } from "@/lib/user";
 import {
   buildTodayPlan, type TodayPlan, type PlanItem, type NotebookData, type Doubt,
   type EngineInput, type PrevMustInput,
@@ -42,7 +43,7 @@ function parseNotebook(s: string | null | undefined): NotebookData {
 }
 
 async function getSettings() {
-  const user = await prisma.user.findFirst({ include: { settings: true } });
+  const user = await ensureUser();
   const s = user?.settings;
   return {
     gateAllocation: s?.gateAllocation ?? 0.375,

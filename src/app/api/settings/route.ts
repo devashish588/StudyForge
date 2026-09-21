@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureUser } from "@/lib/user";
 
 export async function GET() {
   try {
@@ -52,8 +53,10 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { dailyTargetHours, dailyTargetMinutes, stretchTargetMinutes, schedulingMode, notifyReminders, preferredSittings, gateAllocation, roadmapAllocation, revisionAllocation, practiceAllocation, gateSyllabusDeadline, gateExamWindowStart, gateExamWindowEnd, gatePaperDate } = body;
 
-    const user = await prisma.user.findFirst();
-    if (user) {
+    // Bootstrap row is guaranteed to exist, so saves always persist
+    // (previously a silent no-op on databases where seed never ran).
+    const user = await ensureUser();
+    {
       await prisma.user.update({
         where: { id: user.id },
         data: {

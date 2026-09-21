@@ -8,6 +8,7 @@ import {
   GATE_SYLLABUS_DEADLINE_DEFAULT, GATE_EXAM_WINDOW_START_DEFAULT, GATE_EXAM_WINDOW_END_DEFAULT,
 } from "@/lib/date";
 import { calculateStreak, computeCoreDayPure, generatePlan } from "@/lib/study";
+import { ensureUser } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +38,8 @@ export async function GET(req: Request) {
       });
     }
 
-    // 2. User info + settings
-    const user = await prisma.user.findFirst({ include: { settings: true } });
+    // 2. User info + settings (bootstrap row is guaranteed to exist)
+    const user = await ensureUser();
     const targetMinutes = studyDay.targetMinutes || user?.settings?.dailyTargetMinutes || 480;
 
     // 3. Roadmap tasks due today (assignedDate <= today, not completed) + today's explicit
