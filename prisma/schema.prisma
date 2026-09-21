@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id               String   @id @default("user_devashish")
+  name             String   @default("Devashish")
+  email            String   @default("devashish@studyforge.local")
+  dailyTargetHours Float    @default(8.0)
+  currentStreak    Int      @default(0)
+  longestStreak    Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  settings UserSettings?
+}
+
+model UserSettings {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredSittings  String  @default("[]")
+  schedulingMode     String  @default("Flexible")
+  dailyTargetMinutes Int     @default(480)
+  stretchTargetMinutes Int   @default(600)
+  gateAllocation     Float   @default(0.375)
+  roadmapAllocation  Float   @default(0.375)
+  revisionAllocation Float   @default(0.125)
+  practiceAllocation Float   @default(0.125)
+  revisionIntervals  String  @default("[1,7,21,45]")
+  notifyReminders    Boolean @default(true)
+  primaryGoal        String  @default("Both")
+  // V3.1 — two-timeline program configuration.
+  // Skill roadmap: Sep 24 → Dec 31, 2026. GATE first-pass syllabus deadline
+  // defaults to Jan 15, 2027 (user planning deadline, NOT an official date).
+  // Official GATE 2027 window (IIT Madras): Feb 6–21, 2027, subject to change.
+  gateSyllabusDeadline String @default("2027-01-15")
+  gateExamWindowStart  String @default("2027-02-06")
+  gateExamWindowEnd    String @default("2027-02-21")
+  gatePaperDate        String?
+}
+
+model StudyDay {
+  id               String   @id @default(cuid())
+  date             String   @unique // "YYYY-MM-DD"
+  plannedHours     Float    @default(8.0)
+  targetMinutes    Int      @default(480)
+  availableMinutes Int      @default(480)
+  actualMinutes    Int      @default(0)
+  gateMinutes      Int      @default(0)
+  roadmapMinutes   Int      @default(0)
+  practiceMinutes  Int      @default(0)
+  revisionMinutes  Int      @default(0)
+  problemsSolved   Int      @default(0)
+  questionsReviewed Int     @default(0)
+  focusPriority    String   @default("Balanced")
+  dailyReflection  String?
+  tomorrowPriority String?
+  struggleNotes    String?
+  planJson         String   @default("{}")
+  // V3.1 — daily study command center (persisted plan, notebook, doubts).
+  // must/should/could hold JSON arrays of plan items; notebook holds the
+  // daily notebook JSON {goal, notes, questions[], learned}. Refresh-safe:
+  // a stored plan is returned as-is until explicitly regenerated.
+  dailyGoal        String?
+  mustDoJson       String   @default("[]")
+  shouldDoJson     String   @default("[]")
+  couldDoJson      String   @default("[]")
+  notebookContent  String?
+  doubtsJson       String   @default("[]")
+  planGeneratedAt  String?
+  planLocked       Boolean  @default(false)
+  planFeedback     String?
+  coreDayCompleted Boolean  @default(false)
+  restDay          Boolean  @default(false)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  sessions StudySession[]
+
+  @@index([date])
+}
+
+model StudySession {
+  id              String    @id @default(cuid())
+  studyDayId      String
+  studyDay        StudyDay  @relation(fields: [studyDayId], references: [id], onDelete: Cascade)
+  date            String    @default("2026-08-24")
+  title           String
+  category        String    // "Roadmap", "GATE", "Revision", "Practice", "Project"
+  taskId          String?
+  subjectId       String?
+  plannedMinutes  Int       @default(60)
+  actualMinutes   Int       @default(0)
+  durationMinutes Int       @default(60)
+  startTime       DateTime?
+  endTime         DateTime?
+  clockStart      String?
+  clockEnd        String?
+  blockLabel      String    @default("Block 1")
+  completed       Boolean   @default(false)
+  interruptions   Int       @default(0)
+  notes           String?
+
+  @@index([date])
+  @@index([category])
+  @@index([studyDayId])
+}
+
+model RoadmapWeek {
+  id             String        @id @default(cuid())
+  weekNumber     Int           @unique
+  title          String
+  startDate      String        // "YYYY-MM-DD"
+  endDate        String        // "YYYY-MM-DD"
+  focusArea      String
+  practiceTarget Int           @default(25)
+  tasks          RoadmapTask[]
+}
+
+model RoadmapTask {
+  id                   String      @id @default(cuid())
+  weekId               String
+  week                 RoadmapWeek @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  title                String
+  category             String      // "DSA", "Full Stack", "ML", "Generative AI", "RAG", "AI Agents", "DevOps", "Projects"
+  subtopics            String      @default("[]") // JSON string array
+  estimatedTimeMinutes Int         @default(60)
+  practiceReq          String      @default("")
+  projectAssoc         String?
+  status               String      @default("TODO") // "TODO", "IN_PROGRESS", "PRACTICE", "REVISION", "COMPLETED", "NEEDS_REVISIT"
+  completionDate       String?
+  confidence           Int         @default(3)
+  notes                String?
+  sitting              String      @default("Block 1") // flexible Block 1..N (legacy: Morning/Afternoon/Evening/Night)
+  blockLabel           String      @default("Block 1")
+  plannedMinutes       Int         @default(60)
+  actualMinutes        Int         @default(0)
+  assignedDate         String      @default("2026-08-24")
+
+  @@index([status])
+  @@index([assignedDate])
+  @@index([category])
+  @@index([weekId])
+}
+
+model GateSubject {
+  id           String      @id @default(cuid())
+  name         String      @unique
+  icon         String      @default("BookOpen")
+  totalTopics  Int         @default(10)
+  targetDate   String      @default("2027-02-01")
+  totalPYQs    Int         @default(50)
+  solvedPYQs   Int         @default(0)
+  accuracy     Float       @default(0.0)
+  topics       GateTopic[]
+  questions    GateQuestion[]
+}
+
+model GateTopic {
+  id         String      @id @default(cuid())
+  subjectId  String
+  subject    GateSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name       String
+  completed  Boolean     @default(false)
+  confidence Int         @default(3)
+  // V3.1 — syllabus metadata for the daily planning engine.
+  // estimatedMinutes/difficulty seed sensible defaults; importance is
+  // DERIVED at plan time (open errors > low confidence > untouched),
+  // never stored as an invented score.
+  estimatedMinutes Int     @default(90)
+  difficulty       String  @default("Medium") // "Easy", "Medium", "Hard"
+  pyqTarget        Int     @default(10)
+  lastStudied      String?
+  completedAt      String?
+}
+
+model GateQuestion {
+  id          String      @id @default(cuid())
+  subjectId   String
+  subject     GateSubject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topicName   String
+  year        Int
+  questionNo  Int         @default(1)
+  source      String      @default("GATE PYQ")
+  difficulty  String      @default("Medium") // "Easy", "Medium", "Hard"
+  attempted   Boolean     @default(false)
+  correct     Boolean     @default(false)
+  timeMinutes Int         @default(5)
+  confidence  Int         @default(3)
+  mistakeType String?     // "Conceptual", "Calculation", "Misread Question", "Memory", "Carelessness", "Time Management", "Guess"
+  explanation String?
+  revisitDate String?
+  createdAt   DateTime    @default(now())
+
+  @@index([subjectId])
+  @@index([revisitDate])
+  @@index([attempted])
+}
+
+model GateErrorLog {
+  id             String   @id @default(cuid())
+  questionId     String?
+  subject        String
+  topic          String
+  mistakeType    String
+  rootCause      String
+  correctConcept String
+  retryDate      String
+  status         String   @default("OPEN") // "OPEN", "REVISED", "RESOLVED"
+  createdAt      DateTime @default(now())
+}
+
+model GateMockTest {
+  id              String   @id @default(cuid())
+  testName        String
+  date            String
+  durationMinutes Int      @default(180)
+  attempted       Int      @default(0)
+  correct         Int      @default(0)
+  incorrect       Int      @default(0)
+  marks           Float    @default(0.0)
+  accuracy        Float    @default(0.0)
+  weakAreas       String   @default("[]") // JSON string array
+}
+
+model RevisionItem {
+  id               String   @id @default(cuid())
+  title            String
+  category         String   // "DSA", "Full Stack", "ML", "GATE", etc.
+  sourceId         String?
+  sourceType       String   @default("ROADMAP") // "ROADMAP", "GATE", "NOTE", "PROBLEM"
+  stage            Int      @default(1) // 1, 2, 3, 4
+  confidence       Int      @default(3)
+  lastRevisedDate  String?
+  nextRevisionDate String
+  notes            String?
+  history          String   @default("[]") // JSON string array of dates and ratings
+
+  @@index([nextRevisionDate])
+  @@index([category])
+}
+
+model PracticeProblem {
+  id             String   @id @default(cuid())
+  title          String
+  platform       String   @default("LeetCode")
+  url            String?
+  category       String   @default("DSA")
+  pattern        String   @default("Arrays")
+  difficulty     String   @default("Medium") // "Easy", "Medium", "Hard"
+  attempted      Boolean  @default(false)
+  solved         Boolean  @default(false)
+  hintsUsed      Boolean  @default(false)
+  solutionViewed Boolean  @default(false)
+  timeMinutes    Int      @default(15)
+  notes          String?
+  retryDate      String?
+  createdAt      DateTime @default(now())
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  description    String
+  goal           String
+  techStack      String        @default("[]") // JSON string array
+  repoUrl        String?
+  deployUrl      String?
+  progress       Int           @default(0)
+  milestoneStage String        @default("Planning") // "Planning", "Architecture", "Implementation", "Testing", "Optimization", "Deployment", "Documentation", "Demo"
+  tasks          ProjectTask[]
+}
+
+model ProjectTask {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestoneStage String
+  title          String
+  completed      Boolean  @default(false)
+}
+
+model Note {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  tags       String   @default("[]") // JSON string array
+  isPinned   Boolean  @default(false)
+  isRevision Boolean  @default(false)
+  topicId    String?
+  subjectId  String?
+  projectId  String?
+  questionId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model BacklogItem {
+  id               String   @id @default(cuid())
+  title            String
+  category         String   @default("Roadmap") // "Roadmap", "GATE", "Revision", "Project"
+  priority         String   @default("Medium") // "High", "Medium", "Low"
+  estimatedMinutes Int      @default(60)
+  originalDate     String
+  overdueDays      Int      @default(1)
+  status           String   @default("PENDING") // "PENDING", "RESCHEDULED", "RESOLVED", "SKIPPED"
+}
+
+model WeeklyReview {
+  id                  String @id @default(cuid())
+  weekNumber          Int    @unique
+  startDate           String
+  endDate             String
+  roadmapCompleted    Int    @default(0)
+  roadmapTotal        Int    @default(0)
+  gateHours           Float  @default(0.0)
+  pyqsSolved          Int    @default(0)
+  accuracy            Float  @default(0.0)
+  topicsDue           Int    @default(0)
+  topicsCompleted     Int    @default(0)
+  textWhatWentWell    String @default("")
+  textWhatWentBad     String @default("")
+  textWhatToChange    String @default("")
+  textWeakTopics      String @default("")
+}
+
+model MonthlyReview {
+  id              String @id @default(cuid())
+  monthName       String @unique
+  completedTopics Int    @default(0)
+  pyqsSolved      Int    @default(0)
+  accuracy        Float  @default(0.0)
+  summaryNotes    String @default("")
+}
