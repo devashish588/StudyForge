@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   description: "Your daily system for GATE 2027, AI engineering and technical growth.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "StudyForge" },
+  // Standard (non-Apple) equivalent of apple-mobile-web-app-capable.
+  // Next.js has no dedicated option for it, so it goes through `other`
+  // in this same canonical metadata export — no duplicate head tags.
+  other: { "mobile-web-app-capable": "yes" },
   icons: {
     icon: [{ url: "/favicon.ico" }, { url: "/favicon-64.png", sizes: "64x64", type: "image/png" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
