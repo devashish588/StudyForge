@@ -5,9 +5,9 @@
   "start_url": "/today",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#0b0f1a",
-  "theme_color": "#0b0f1a",
+  "orientation": "portrait-primary",
+  "theme_color": "#18181f",
+  "background_color": "#0b0b0f",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -24,6 +24,28 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today's Plan",
+      "short_name": "Today",
+      "url": "/today"
+    },
+    {
+      "name": "Start Study Session",
+      "short_name": "Study",
+      "url": "/today"
+    },
+    {
+      "name": "GATE 2027",
+      "short_name": "GATE",
+      "url": "/gate"
+    },
+    {
+      "name": "Revision",
+      "short_name": "Revision",
+      "url": "/revision"
     }
   ]
 }
