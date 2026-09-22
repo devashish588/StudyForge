@@ -19,7 +19,7 @@ const patterns = [
   "Stack", "Queue", "Trees", "BST", "Heap", "Graph", "Greedy", "Dynamic Programming", "Prefix Sum",
 ] as const;
 
-const inputCls = "w-full rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground focus:outline-none focus:border-accent";
+const inputCls = "w-full rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent";
 
 export default function PracticePage() {
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -236,18 +236,18 @@ export default function PracticePage() {
             placeholder="Search problems or patterns…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-border bg-card pl-10 pr-3 py-2.5 text-sm text-card-foreground placeholder-gray-500 focus:border-accent focus:outline-none"
+            className="w-full rounded-xl border border-border bg-card pl-10 pr-3 py-2.5 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none"
             aria-label="Search problems"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">⌕</span>
         </div>
-        <select value={difficultyFilter} onChange={(e) => setDifficultyFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-gray-300 focus:border-accent focus:outline-none" aria-label="Filter by difficulty">
+        <select value={difficultyFilter} onChange={(e) => setDifficultyFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-card-foreground focus:border-accent focus:outline-none" aria-label="Filter by difficulty">
           <option value="All">All difficulties</option>
           <option value="Easy">Easy</option>
           <option value="Medium">Medium</option>
           <option value="Hard">Hard</option>
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-gray-300 focus:border-accent focus:outline-none" aria-label="Filter by status">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-card-foreground focus:border-accent focus:outline-none" aria-label="Filter by status">
           <option value="All">All status</option>
           <option value="solved">Solved</option>
           <option value="attempted">Attempted</option>

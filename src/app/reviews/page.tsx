@@ -98,7 +98,7 @@ export default function ReviewsPage() {
   if (loadError) return <PageShell><ErrorState message={loadError} onRetry={fetchAll} /></PageShell>;
 
   const targetPct = score && score.targetMinutes ? Math.round((score.focusedMinutes / score.targetMinutes) * 100) : 0;
-  const taCls = "w-full rounded-xl border border-border bg-border/30 p-3 text-xs text-card-foreground focus:outline-none focus:border-accent";
+  const taCls = "w-full rounded-xl border border-border bg-border/30 p-3 text-xs text-card-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent";
   const labCls = "mb-1 block text-xs font-bold text-gray-300";
 
   return (

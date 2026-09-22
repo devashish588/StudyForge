@@ -157,7 +157,7 @@ export default function NotesPage() {
           <div className="mb-3 flex items-center gap-2 rounded-xl border border-border bg-border/30 px-3 py-2">
             <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search notes…" aria-label="Search notes"
-              className="w-full bg-transparent text-xs text-card-foreground placeholder-gray-500 focus:outline-none" />
+              className="w-full bg-transparent text-xs text-card-foreground placeholder:text-gray-500 focus:outline-none" />
           </div>
           <div className="mb-3 flex flex-wrap gap-1.5">
             {allTags.map((t) => (
@@ -195,7 +195,7 @@ export default function NotesPage() {
         <div className="rounded-xl border border-border bg-card p-4 space-y-4 lg:col-span-2">
           <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
             <input value={title} onChange={(e) => { setTitle(e.target.value); setDirty(true); }} placeholder="Note title…"
-              className="flex-1 rounded-xl border border-border bg-border/30 px-3.5 py-2 text-sm font-bold text-card-foreground focus:outline-none focus:border-accent" />
+              className="flex-1 rounded-xl border border-border bg-border/30 px-3.5 py-2 text-sm font-bold text-card-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent" />
             <div className="flex shrink-0 items-center gap-2">
               <button type="button" onClick={() => { setIsPinned(!isPinned); setDirty(true); }}
                 className={cn("flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",

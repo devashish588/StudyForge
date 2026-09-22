@@ -11,7 +11,7 @@ interface RecentQ { id: string; topicName: string; year: number; questionNo: num
 
 const mistakeTypes = ["Conceptual", "Calculation", "Misread Question", "Memory", "Carelessness", "Time Management", "Guess"];
 
-const inputCls = "w-full mt-1 rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground focus:outline-none focus:border-purple-500";
+const inputCls = "w-full mt-1 rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground placeholder:text-gray-500 focus:outline-none focus:border-purple-500";
 const labelCls = "text-xs font-semibold text-gray-400";
 
 export default function GateQuestionsPage() {

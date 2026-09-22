@@ -136,3 +136,51 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     color: black !important;
   }
 }
+
+/* Global form contrast — guarantees readability for every input variant */
+@layer base {
+  input, textarea, select, [contenteditable="true"] {
+    color-scheme: light dark;
+  }
+  /* Theme-aware form controls (StudyForge dark card/border) use card-foreground for entered text */
+  input::placeholder, textarea::placeholder {
+    opacity: 1;
+    color: #9ca3af;
+  }
+  .light input::placeholder, .light textarea::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+  /* Hard white backgrounds must never have light text — force dark slate */
+  input.bg-white, textarea.bg-white, select.bg-white {
+    color: #0f172a !important;
+  }
+  input.bg-white::placeholder, textarea.bg-white::placeholder, select.bg-white::placeholder {
+    color: #64748b !important;
+    opacity: 1;
+  }
+  /* Autofill — keep text visible in both themes */
+  input:-webkit-autofill, textarea:-webkit-autofill, select:-webkit-autofill {
+    -webkit-text-fill-color: var(--card-foreground) !important;
+    -webkit-box-shadow: 0 0 0px 1000px var(--card) inset !important;
+    caret-color: var(--card-foreground);
+    transition: background-color 5000s ease-in-out 0s;
+  }
+  /* Disabled remains readable */
+  input:disabled, textarea:disabled, select:disabled {
+    opacity: 0.7;
+    color: var(--muted);
+  }
+  /* Native date/time pickers and dropdowns */
+  input[type="date"], input[type="time"], input[type="datetime-local"] {
+    color: var(--card-foreground);
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    opacity: 0.7;
+  }
+  select option {
+    background: var(--card);
+    color: var(--card-foreground);
+  }
+}

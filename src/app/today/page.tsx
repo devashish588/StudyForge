@@ -420,7 +420,7 @@ export default function TodayPage() {
         {goalEditing ? (
           <div className="mt-3">
             <textarea value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} rows={2}
-              className="w-full rounded-xl border border-border bg-card p-4 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none"
+              className="w-full rounded-xl border border-border bg-card p-4 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none"
               placeholder="e.g. Finish DBMS Transactions today." />
             <div className="mt-2 flex gap-2">
               <button onClick={async () => { try { await patchPlan({ action: "set-goal", goal: goalDraft }); } catch {} setGoalEditing(false); }}
@@ -907,7 +907,7 @@ function NotebookSection({ notebook, mustItems, onToggle, expandedDoubts, setExp
       <textarea value={goal} rows={2}
         onChange={(e) => { setGoal(e.target.value); queueSave({ goal: e.target.value }); }}
         placeholder="Finish Arrays + Big-O…"
-        className="w-full rounded-xl border border-border bg-border/30 p-4 text-[15px] leading-relaxed text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+        className="w-full rounded-xl border border-border bg-border/30 p-4 text-[15px] leading-relaxed text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
 
       <p className="mb-1 mt-5 text-sm font-bold text-gray-200">Must finish</p>
       {mustItems.length === 0 ? (
@@ -928,7 +928,7 @@ function NotebookSection({ notebook, mustItems, onToggle, expandedDoubts, setExp
       <textarea value={notes} rows={5}
         onChange={(e) => { setNotes(e.target.value); queueSave({ notes: e.target.value }); }}
         placeholder="Important notes, formulas, reminders…"
-        className="min-h-[140px] w-full rounded-xl border border-border bg-border/30 p-4 text-[15px] leading-relaxed text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+        className="min-h-[140px] w-full rounded-xl border border-border bg-border/30 p-4 text-[15px] leading-relaxed text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
 
       <div className="mt-4 space-y-2">
         <Expander open={expandedDoubts} onToggle={() => setExpandedDoubts(!expandedDoubts)} icon={<HelpCircle className="h-4 w-4" />} title={`Questions / doubts (${notebook.questions.filter((q) => q.status === "open").length} open)`}>
@@ -951,7 +951,7 @@ function NotebookSection({ notebook, mustItems, onToggle, expandedDoubts, setExp
             ))}
             <div className="flex gap-2 pt-1">
               <input value={doubtText} onChange={(e) => setDoubtText(e.target.value)} placeholder="e.g. Why does 3NF allow…?" aria-label="New doubt"
-                className="flex-1 rounded-xl border border-border bg-border/30 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none"
+                className="flex-1 rounded-xl border border-border bg-border/30 px-3 py-2.5 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none"
                 onKeyDown={(e) => { if (e.key === "Enter") { onDoubt("add", doubtText); setDoubtText(""); } }} />
               <button onClick={() => { onDoubt("add", doubtText); setDoubtText(""); }} disabled={!doubtText.trim()}
                 className="rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">Add</button>
@@ -963,7 +963,7 @@ function NotebookSection({ notebook, mustItems, onToggle, expandedDoubts, setExp
           <textarea value={learned} rows={3}
             onChange={(e) => { setLearned(e.target.value); queueSave({ learned: e.target.value }); }}
             placeholder="One or two lines…"
-            className="mt-1 w-full rounded-xl border border-border bg-border/30 p-3 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+            className="mt-1 w-full rounded-xl border border-border bg-border/30 p-3 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
         </Expander>
 
         <Expander open={expandedTomorrow} onToggle={() => setExpandedTomorrow(!expandedTomorrow)} icon={<MoonStar className="h-4 w-4" />} title="Tomorrow">
@@ -981,7 +981,7 @@ function TomorrowBox({ defaultText, value, setValue, onSave }: { defaultText: st
   return (
     <div className="pt-1">
       <textarea value={value} rows={2} onChange={(e) => setValue(e.target.value)} placeholder="What should tomorrow start with?"
-        className="w-full rounded-xl border border-border bg-border/30 p-3 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+        className="w-full rounded-xl border border-border bg-border/30 p-3 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
       <button onClick={async () => { await onSave(value); setSavedTick(true); setTimeout(() => setSavedTick(false), 1500); }}
         className="mt-2 rounded-xl border border-border bg-border/30 px-4 py-2 text-[13px] font-bold text-gray-200 hover:bg-border/60">
         {savedTick ? "Saved ✓" : "Save"}
@@ -1037,7 +1037,7 @@ function PlanDayModal({ isOpen, onClose, available, priority, pace, horizons, on
           ))}
         </div>
         <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Custom hours" inputMode="decimal"
-          className="mb-5 w-full rounded-xl border border-border bg-border/30 px-3 py-2 text-xs text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+          className="mb-5 w-full rounded-xl border border-border bg-border/30 px-3 py-2 text-xs text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
         <p className="mb-2 text-xs font-bold text-gray-300">PRIORITY</p>
         <div className="mb-5 flex flex-wrap gap-2">
           {(["Balanced", "GATE", "Roadmap", "Project", "Revision"] as FocusPriority[]).map((p) => (
@@ -1047,7 +1047,7 @@ function PlanDayModal({ isOpen, onClose, available, priority, pace, horizons, on
         </div>
         <p className="mb-2 text-xs font-bold text-gray-300">MUST FINISH TODAY? <span className="font-normal text-gray-500">(optional — reshapes the plan around it)</span></p>
         <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="e.g. Finish DBMS Transactions"
-          className="mb-5 w-full rounded-xl border border-border bg-border/30 px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none" />
+          className="mb-5 w-full rounded-xl border border-border bg-border/30 px-3 py-2.5 text-sm text-card-foreground placeholder:text-gray-500 focus:border-accent focus:outline-none" />
         {err && <p className="mb-2 text-center text-xs font-semibold text-rose-400">{err}</p>}
         <button disabled={busy || avail < 60} onClick={async () => {
           setBusy(true); setErr(null);

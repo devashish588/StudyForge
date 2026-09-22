@@ -74,7 +74,7 @@ export default function GateMocksPage() {
   const bestAcc = mocks.length ? Math.max(...mocks.map((m) => m.accuracy)) : 0;
   const trend = [...mocks].reverse().map((m) => ({ day: m.date.slice(5), acc: m.accuracy, marks: m.marks, att: m.attempted }));
 
-  const inputCls = "w-full mt-1 rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground focus:outline-none focus:border-accent";
+  const inputCls = "w-full mt-1 rounded-xl border border-border bg-border/30 p-2.5 text-xs text-card-foreground placeholder:text-gray-500 focus:outline-none focus:border-accent";
 
   return (
     <PageShell>
