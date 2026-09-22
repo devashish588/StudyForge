@@ -376,39 +376,51 @@ export default function TodayPage() {
   const remaining = day.sessions.filter((s) => !s.completed).length;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
-      {/* 1 — header: date, day, target, streak */}
-      <header className="pt-4 md:pt-8">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">Today</p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-white md:text-5xl">{formatDisplay(day.date)}</h1>
-        <p className="mt-2 text-lg text-gray-400">Day {programDay} / 99 &nbsp;·&nbsp; {daysLeft} days left in roadmap</p>
-        <div className="mt-5 flex flex-wrap items-end gap-x-10 gap-y-4">
-          <p className="text-3xl font-extrabold text-white md:text-4xl">
-            {minutesToHM(day.actualMinutes)} <span className="text-lg font-semibold text-gray-500">/ {minutesToHM(target)} target</span>
-          </p>
-          {streak && (
-            <p className="flex items-center gap-1.5 text-lg font-extrabold text-orange-300" title={`${streak.current} day streak`}>
-              <Flame className="h-5 w-5" /> {streak.current} <span className="text-sm font-bold text-gray-500">day streak</span>
-            </p>
-          )}
+    <div className="mx-auto max-w-3xl space-y-8 pb-16 md:space-y-10">
+      {/* 1 — journey position (compact, answers "Where am I?") */}
+      <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 text-xs font-bold">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-accent">
+            DAY {programDay} / 99
+          </span>
+          <span className="text-gray-400">· {daysLeft} days to Dec 31</span>
         </div>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="text-gray-500">GATE syllabus:</span>
+          <span className="font-bold text-purple-300">Jan 15</span>
+          <span className="text-gray-600">·</span>
+          <span className="text-gray-400">{plan?.plan.horizons?.crackLabel ?? "~4.5 months"} to exam</span>
+        </div>
+      </div>
+
+      {/* 2 — header: date + target + progress (Today = execution) */}
+      <header className="pt-2">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">Today — execution</p>
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white md:text-4xl">{formatDisplay(day.date)}</h1>
+        <p className="mt-3 text-2xl font-extrabold text-white md:text-3xl">
+          {minutesToHM(day.actualMinutes)} <span className="text-lg font-semibold text-gray-500">/ {minutesToHM(target)} target</span>
+          {streak && <span className="ml-3 inline-flex items-center gap-1 text-base font-bold text-orange-300"><Flame className="h-4 w-4" /> {streak.current}</span>}
+        </p>
         <div className="mt-4">
           <ProgressBar value={Math.min(100, pct)} color="bg-gradient-to-r from-indigo-500 to-emerald-400" heightClass="h-3" />
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[13px] font-semibold text-gray-400">
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs font-semibold text-gray-400">
           <span>Time: {Math.min(999, pct)}%</span>
           <span>Objectives: {doneCount}/{items.length} ({objPct}%)</span>
+          {core && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" /> Core complete</span>}
         </div>
-        {core && <p className="mt-3 flex items-center gap-1.5 text-[15px] font-bold text-emerald-300"><CheckCircle2 className="h-5 w-5" /> Core day complete — streak preserved</p>}
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gray-400">
+          Today&apos;s work compounds into your 2027 outcome. <span className="text-gray-300">{plan?.plan.pace && !plan.plan.pace.onPace ? "Behind pace — focus on Must do." : "Stay on Must do to remain on pace."}</span>
+        </p>
       </header>
 
-      {/* 2 — TODAY'S GOAL (editable) */}
+      {/* 3 — TODAY'S GOAL (primary intent) */}
       <section>
-        <h2 className="text-2xl font-bold tracking-tight text-white md:text-[1.7rem]">Today&apos;s goal</h2>
+        <h2 className="text-xl font-bold tracking-tight text-white">Today&apos;s goal</h2>
         {goalEditing ? (
           <div className="mt-3">
             <textarea value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} rows={2}
-              className="w-full rounded-2xl border border-border bg-card p-4 text-[15px] text-white placeholder-gray-500 focus:border-accent focus:outline-none"
+              className="w-full rounded-xl border border-border bg-card p-4 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none"
               placeholder="e.g. Finish DBMS Transactions today." />
             <div className="mt-2 flex gap-2">
               <button onClick={async () => { try { await patchPlan({ action: "set-goal", goal: goalDraft }); } catch {} setGoalEditing(false); }}
@@ -418,53 +430,99 @@ export default function TodayPage() {
           </div>
         ) : (
           <div className="mt-2 flex items-start justify-between gap-3">
-            <p className="text-lg leading-relaxed text-gray-100">{plan?.plan.goal || "Steady study day."}</p>
+            <p className="text-base leading-relaxed text-gray-100">{plan?.plan.goal || "Steady study day — Must do below defines today."}</p>
             <button onClick={() => { setGoalDraft(plan?.plan.goal || ""); setGoalEditing(true); }}
-              className="shrink-0 rounded-xl border border-border bg-border/30 px-4 py-2 text-[13px] font-bold text-gray-300 hover:bg-border/60">Edit</button>
+              className="shrink-0 rounded-xl border border-border bg-border/30 px-4 py-2 text-xs font-bold text-gray-300 hover:bg-border/60">Edit</button>
           </div>
         )}
       </section>
 
-      {/* 3 — MUST DO */}
-      <PlanTierSection
-        title="Must do" items={must} compact={compact}
-        empty="Nothing mandatory — steady day."
-        onToggle={togglePlanItem} onStart={startPlanItem} onMove={async (id) => { try { await patchPlan({ action: "move-tomorrow", itemId: id }); } catch {} }}
-      />
-
-      {/* 4 — NEXT ACTION */}
+      {/* 4 — CURRENT / NEXT ACTION — the ONE dominant CTA */}
       {plan?.nextAction ? (
-        <section className="rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-6 md:p-8">
-          <p className="text-[13px] font-extrabold uppercase tracking-widest text-indigo-300">What should I do now?</p>
-          <p className="mt-2 text-2xl font-bold text-white md:text-[1.7rem]">{plan.nextAction.title}</p>
-          <p className="mt-1 text-[15px] text-gray-400">{plan.nextAction.kind} • {plan.nextAction.minutes} minutes</p>
-          <p className="mt-2 text-sm italic text-gray-500">Why: {plan.nextAction.why}</p>
-          <button onClick={() => startPlanItem(plan.nextAction!)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-base font-bold text-white shadow-md transition hover:bg-accent-hover">
-            <Play className="h-5 w-5" /> Start
+        <section className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 via-card to-card p-6 md:p-8 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden />
+            <p className="text-xs font-extrabold uppercase tracking-widest text-accent">Current focus — start now</p>
+          </div>
+          <h3 className="mt-3 text-2xl font-extrabold leading-tight text-white md:text-3xl">{plan.nextAction.title}</h3>
+          <p className="mt-2 text-sm text-gray-300">{plan.nextAction.detail || `${plan.nextAction.kind} • ${plan.nextAction.minutes} minutes`}</p>
+          <p className="mt-2 text-xs italic text-gray-500">Why today? {plan.nextAction.why}</p>
+          <button onClick={() => startPlanItem(plan.nextAction!)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-accent-hover min-h-[52px]">
+            <Play className="h-5 w-5" /> START NEXT SESSION
           </button>
+          <p className="mt-2 text-center text-xs text-gray-500">The most important next step — everything else is secondary</p>
         </section>
       ) : items.length > 0 ? (
         <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center md:p-8">
           <p className="text-lg font-bold text-emerald-300">Today complete ✓</p>
-          <p className="mt-1 text-sm text-gray-400">Every planned objective is done.</p>
+          <p className="mt-1 text-sm text-gray-400">Every planned objective is done. Wrap up to carry momentum.</p>
+          <button onClick={() => setWrapUpOpen(true)} className="mt-4 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white">Daily wrap-up</button>
         </section>
       ) : null}
 
-      {/* session handoff */}
+      {/* session handoff — subtle, not competing with main CTA */}
       {handoff && (
-        <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 animate-fadeIn md:p-8">
-          <p className="flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-widest text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" /> Complete ✓ {handoff.doneTitle}
-          </p>
-          <p className="mt-2 text-xl font-bold text-white">Next: {handoff.next.title}</p>
-          <p className="mt-1 text-[15px] text-gray-400">{handoff.next.kind} • {handoff.next.minutes} minutes</p>
-          <div className="mt-4 flex gap-2">
+        <section className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between gap-4 animate-fadeIn">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" /> {handoff.doneTitle} — done
+            </p>
+            <p className="mt-1 text-sm font-bold text-white">Next: {handoff.next.title} <span className="font-normal text-gray-400">· {handoff.next.minutes}m</span></p>
+          </div>
+          <div className="flex gap-2 shrink-0">
             <button onClick={() => { const n = handoff.next; setHandoff(null); startPlanItem(n); }}
-              className="flex-1 rounded-2xl bg-accent px-6 py-3.5 text-base font-bold text-white">Start next</button>
-            <button onClick={() => setHandoff(null)} className="rounded-2xl border border-border px-6 py-3.5 text-sm font-bold text-gray-300">Later</button>
+              className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white">Start next</button>
+            <button onClick={() => setHandoff(null)} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-gray-400">Later</button>
           </div>
         </section>
       )}
+
+      {/* 5 — TODAY'S MISSION (Today = execution, compact) */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h3 className="text-sm font-bold text-gray-200">Today&apos;s mission</h3>
+        <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+          {[
+            { label: "GATE", mins: plan?.plan.items.filter(i => i.kind === "GATE" && !i.done).reduce((a,b)=>a+b.minutes,0) ?? 0, done: plan?.plan.items.filter(i => i.kind==="GATE" && i.done).length ?? 0 },
+            { label: "Roadmap", mins: plan?.plan.items.filter(i => i.kind === "ROADMAP" && !i.done).reduce((a,b)=>a+b.minutes,0) ?? 0, done: plan?.plan.items.filter(i => i.kind==="ROADMAP" && i.done).length ?? 0 },
+            { label: "Practice", mins: plan?.plan.items.filter(i => i.kind === "PRACTICE" && !i.done).reduce((a,b)=>a+b.minutes,0) ?? 0, done: 0 },
+            { label: "Revision", mins: plan?.plan.items.filter(i => i.kind === "REVISION" && !i.done).reduce((a,b)=>a+b.minutes,0) ?? 0, done: 0 },
+          ].map(s => (
+            <div key={s.label} className="rounded-lg bg-border/20 px-3 py-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{s.label}</p>
+              <p className="mt-1 text-sm font-bold text-white">{s.mins > 0 ? `${s.mins}m remaining` : "—"}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 6 — MUST DO — no contradictory empty states */}
+      <section>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-xl font-bold tracking-tight text-white">Must do</h2>
+          <span className="text-xs font-semibold text-gray-500">{must.filter(m=>!m.done).length} remaining · {must.length} total</span>
+        </div>
+        {must.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-border p-4">
+            <p className="text-sm font-semibold text-gray-300">No must-do locked for today.</p>
+            <p className="mt-1 text-xs text-gray-500">Your Should do list below holds the next priorities — or generate a plan to fill Must.</p>
+          </div>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {must.map(it => (
+              <li key={it.id} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
+                <input type="checkbox" checked={it.done} onChange={() => togglePlanItem(it)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-500" aria-label={`Done: ${it.title}`} />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}>{it.title} <span className="ml-2 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span></p>
+                  <p className="mt-1 text-xs italic text-gray-500 line-clamp-2">Why: {it.why}</p>
+                </div>
+                {!it.done && (
+                  <button onClick={() => startPlanItem(it)} className="shrink-0 rounded-xl bg-accent/10 border border-accent/20 px-3 py-2 text-xs font-bold text-accent hover:bg-accent/20 min-h-[40px]" aria-label={`Start ${it.title}`}>Start</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* 5 — NOTEBOOK */}
       <NotebookSection

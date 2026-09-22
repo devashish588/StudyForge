@@ -90,6 +90,9 @@ export default function GateDashboardPage() {
         <p className="mt-1 text-2xl font-extrabold text-emerald-400 md:text-3xl">{avgAccuracy}% <span className="text-base font-semibold text-gray-500">accuracy</span></p>
         <div className="mt-4 max-w-md">
           <ProgressBar value={totalPYQs > 0 ? Math.round((solvedPYQs / totalPYQs) * 100) : 0} color="bg-gradient-to-r from-purple-500 to-indigo-400" heightClass="h-2.5" />
+          <p className="mt-2 text-xs text-gray-500">
+            {totalPYQs > 0 ? `${solvedPYQs}/${totalPYQs} PYQs • ${Math.max(0, totalPYQs - solvedPYQs)} remaining` : "1270 PYQs target"} • {(() => { const d = Math.max(1, Math.ceil((new Date("2027-01-15").getTime() - Date.now()) / 86400000)); const rem = Math.max(0, totalPYQs - solvedPYQs || 1270 - solvedPYQs); return `${Math.ceil(rem / d)}/day to Jan 15`; })()}
+          </p>
         </div>
         <div className="mt-5 flex flex-wrap gap-2">
           <Link href="/gate/questions" className="flex items-center gap-1.5 rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-purple-500">

@@ -18,10 +18,10 @@ const tipStyle = { backgroundColor: "#111827", borderColor: "#374151", fontSize:
 export default function GateMocksPage() {
   const [mocks, setMocks] = useState<MockTest[]>([]);
   const [testName, setTestName] = useState("");
-  const [attempted, setAttempted] = useState("45");
-  const [correct, setCorrect] = useState("35");
-  const [incorrect, setIncorrect] = useState("10");
-  const [marks, setMarks] = useState("55");
+  const [attempted, setAttempted] = useState("");
+  const [correct, setCorrect] = useState("");
+  const [incorrect, setIncorrect] = useState("");
+  const [marks, setMarks] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -133,19 +133,19 @@ export default function GateMocksPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-400">Attempted</label>
-            <input type="number" value={attempted} onChange={(e) => setAttempted(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="e.g. 65" value={attempted} onChange={(e) => setAttempted(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-400">Correct</label>
-            <input type="number" value={correct} onChange={(e) => setCorrect(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="e.g. 48" value={correct} onChange={(e) => setCorrect(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-400">Incorrect</label>
-            <input type="number" value={incorrect} onChange={(e) => setIncorrect(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="e.g. 17" value={incorrect} onChange={(e) => setIncorrect(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-400">Marks</label>
-            <input type="number" value={marks} onChange={(e) => setMarks(e.target.value)} className={inputCls} />
+            <input type="number" placeholder="e.g. 72" value={marks} onChange={(e) => setMarks(e.target.value)} className={inputCls} />
           </div>
           <div className="col-span-2 md:col-span-4">
             {saveError && <p className="mb-2 text-xs font-semibold text-rose-400">{saveError}</p>}

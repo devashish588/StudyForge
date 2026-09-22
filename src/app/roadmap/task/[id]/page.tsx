@@ -125,6 +125,30 @@ export default function RoadmapTaskPage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
+      {/* Workflow summary — current state */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl border border-border bg-card p-3 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Concepts</p>
+          <p className="mt-1 text-lg font-black text-white">{checksDone}/{subtopicsList.length}</p>
+          <p className="text-xs text-gray-500">{checksDone === subtopicsList.length ? "done" : "in progress"}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-3 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Practice</p>
+          <p className={`mt-1 text-sm font-bold ${status === "PRACTICE" || status === "COMPLETED" ? "text-emerald-400" : "text-amber-400"}`}>{status === "PRACTICE" || status === "COMPLETED" ? "done" : "pending"}</p>
+          <p className="text-xs text-gray-500">from memory</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-3 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Recall</p>
+          <p className={`mt-1 text-sm font-bold ${checksDone === subtopicsList.length && (status === "COMPLETED" || status === "REVISION") ? "text-emerald-400" : "text-amber-400"}`}>{checksDone === subtopicsList.length && (status === "COMPLETED" || status === "REVISION") ? "done" : "pending"}</p>
+          <p className="text-xs text-gray-500">active recall</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-3 text-center">
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Next revision</p>
+          <p className="mt-1 text-sm font-bold text-white">{nextRevision ?? "—"}</p>
+          <p className="text-xs text-gray-500">{nextRevision ? "scheduled" : "on complete"}</p>
+        </div>
+      </div>
+
       <SectionHeader title="Learn — concept checklist" action={<span className="font-mono text-[11px] text-gray-500">{checksDone}/{subtopicsList.length}</span>} />
       <ChartCard title="Concepts">
         <div className="space-y-2">

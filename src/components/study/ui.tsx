@@ -56,7 +56,15 @@ export function PlainSection({ title, action, children, className }: {
   );
 }
 
-/* ---------- Buttons ---------- */
+/* ---------- Buttons — semantic variants ----------
+   PRIMARY   : accent fill, for main CTA
+   SECONDARY : bordered, for secondary actions
+   GHOST     : text-only, for tertiary / subtle actions
+   DANGER    : rose, for destructive actions
+   ICON      : square, for icon-only (44px touch target)
+------------------------------------------------ */
+
+const baseButton = "inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none min-h-[44px]";
 
 export function PrimaryButton({
   children, onClick, type, className, disabled,
@@ -69,10 +77,7 @@ export function PrimaryButton({
       type={type ?? "button"}
       onClick={onClick}
       disabled={disabled}
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:bg-accent-hover disabled:opacity-50",
-        className
-      )}
+      className={cn(baseButton, "bg-accent px-5 py-2.5 text-white shadow-md hover:bg-accent-hover", className)}
     >
       {children}
     </button>
@@ -84,12 +89,74 @@ export function SecondaryButton({
 }: {
   children: React.ReactNode; onClick?: () => void; className?: string; href?: string;
 }) {
-  const cls = cn(
-    "inline-flex items-center justify-center gap-1.5 rounded-xl border border-border bg-border/40 px-4 py-2.5 text-xs font-bold text-gray-200 transition hover:bg-border/70",
-    className
-  );
+  const cls = cn(baseButton, "border border-border bg-border/40 px-5 py-2.5 text-gray-200 hover:bg-border/70", className);
   if (href) return <Link href={href} className={cls}>{children}</Link>;
   return <button type="button" onClick={onClick} className={cls}>{children}</button>;
+}
+
+export function GhostButton({
+  children, onClick, className, disabled,
+}: {
+  children: React.ReactNode; onClick?: () => void; className?: string; disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(baseButton, "px-4 py-2 text-gray-400 hover:bg-border/30 hover:text-gray-200", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function DangerButton({
+  children, onClick, className, disabled,
+}: {
+  children: React.ReactNode; onClick?: () => void; className?: string; disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(baseButton, "border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-rose-300 hover:bg-rose-500/20", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function IconButton({
+  children, onClick, label, className,
+}: {
+  children: React.ReactNode; onClick?: () => void; label: string; className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={cn(baseButton, "h-11 w-11 p-0 rounded-xl border border-border bg-card text-gray-400 hover:bg-border/40 hover:text-gray-200", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ---------- Semantic text roles ---------- */
+export function TextPrimary({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn("text-sm font-semibold text-card-foreground", className)}>{children}</span>;
+}
+export function TextSecondary({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn("text-sm text-gray-300", className)}>{children}</span>;
+}
+export function TextMuted({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn("text-xs text-gray-400", className)}>{children}</span>;
+}
+export function TextAccent({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={cn("text-sm font-bold text-accent", className)}>{children}</span>;
 }
 
 /* ---------- Data display ---------- */

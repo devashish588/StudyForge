@@ -84,7 +84,7 @@ export default function ProjectsPage() {
                 </div>
                 <div className="mt-4 space-y-1.5 text-sm">
                   {lastDone && <p className="text-gray-400">Current phase: <span className="font-semibold text-gray-200">{lastDone.title}</span></p>}
-                  {next && <p className="text-gray-300">Next: <span className="font-semibold text-white">{next.title}</span></p>}
+                  {next && <p className="text-gray-300">Next iteration: <span className="font-semibold text-white">{next.title}</span> <span className="text-xs text-indigo-300">• {next.milestoneStage}</span></p>}
                 </div>
                 {(proj.repoUrl || proj.deployUrl) && (
                   <div className="mt-3 flex gap-4 text-[13px] font-bold">

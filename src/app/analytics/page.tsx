@@ -117,6 +117,56 @@ export default function AnalyticsPage() {
           <p className="text-[11px] text-gray-400 mt-1">Longest {a.streak.longest} • core-day based</p></Card>
       </div>
 
+      {/* Executive summary — PLANNED / ACTUAL / EXECUTION */}
+      <Card className="border-border/60">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Planned</p>
+            <p className="mt-1 text-xl font-black text-white">{minutesToHM(a.scorecard.targetMinutes)}</p>
+            <p className="text-xs text-gray-500">last 7 days</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Actual</p>
+            <p className="mt-1 text-xl font-black text-white">{minutesToHM(a.scorecard.focusedMinutes)}</p>
+            <p className="text-xs text-gray-500">focused</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Execution</p>
+            <p className="mt-1 text-xl font-black text-accent">{a.scorecard.targetMinutes > 0 ? Math.round((a.scorecard.focusedMinutes / a.scorecard.targetMinutes) * 100) : 0}%</p>
+            <p className="text-xs text-gray-500">of plan</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          {(() => {
+            const gapDay = [...a.daily].slice(-7).reduce((worst, d) => {
+              const gap = (d.target - d.minutes);
+              return gap > (worst.gap ?? -1) ? { date: d.date, gap } : worst;
+            }, { date: "", gap: -1 } as { date: string; gap: number });
+            const strongest = [...a.roadmap.categoryCompletion].sort((x,y) => y.pct - x.pct)[0];
+            return (
+              <>
+                <div className="rounded-lg bg-border/20 px-3 py-2">
+                  <p className="font-bold text-gray-400">Biggest gap</p>
+                  <p className="mt-1 font-semibold text-white">{gapDay.date ? `${gapDay.date.slice(5)} · ${minutesToHM(gapDay.gap)} short` : "—"}</p>
+                </div>
+                <div className="rounded-lg bg-border/20 px-3 py-2">
+                  <p className="font-bold text-gray-400">Strongest area</p>
+                  <p className="mt-1 font-semibold text-white">{strongest ? `${strongest.category} · ${strongest.pct}%` : "—"}</p>
+                </div>
+                <div className="rounded-lg bg-border/20 px-3 py-2">
+                  <p className="font-bold text-gray-400">Overdue load</p>
+                  <p className="mt-1 font-semibold text-white">{a.revision.overdue} revision · {a.revision.dueToday} due today</p>
+                </div>
+                <div className="rounded-lg bg-border/20 px-3 py-2">
+                  <p className="font-bold text-gray-400">GATE trend</p>
+                  <p className="mt-1 font-semibold text-white">{a.gate.accuracy}% accuracy · {a.gate.pyqTrend.length} points</p>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </Card>
+
       {!hasActivity && <EmptyState title="Your activity will appear here" hint="Complete your first study session — charts populate from real sessions." />}
 
       <Tabs tabs={["Focus", "GATE", "Roadmap", "Revision", "Momentum"] as const} value={tab} onChange={setTab} />

@@ -26,12 +26,15 @@ export default function PracticePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof patterns)[number]>("All");
+  const [search, setSearch] = useState("");
+  const [difficultyFilter, setDifficultyFilter] = useState<"All" | "Easy" | "Medium" | "Hard">("All");
+  const [statusFilter, setStatusFilter] = useState<"All" | "solved" | "attempted">("All");
 
   const [title, setTitle] = useState("");
   const [pattern, setPattern] = useState("Arrays");
   const [difficulty, setDifficulty] = useState("Medium");
-  const [timeMinutes, setTimeMinutes] = useState("15");
-  const [solved, setSolved] = useState(true);
+  const [timeMinutes, setTimeMinutes] = useState("");
+  const [solved, setSolved] = useState(false);
 
   const fetchProblems = async () => {
     try {
@@ -105,7 +108,13 @@ export default function PracticePage() {
   const maxHeat = Math.max(1, ...heat.map(([, v]) => v.solved));
   const weakPatterns = heat.filter(([, v]) => v.total > 0 && v.solved / v.total < 0.6).slice(0, 4);
 
-  const filtered = filter === "All" ? problems : problems.filter((p) => p.pattern === filter);
+  const filtered = problems.filter((p) => {
+    if (filter !== "All" && p.pattern !== filter) return false;
+    if (difficultyFilter !== "All" && p.difficulty !== difficultyFilter) return false;
+    if (statusFilter !== "All" && (p.solved ? "solved" : "attempted") !== statusFilter) return false;
+    if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.pattern.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
   const weekMinutes = weekSolved.reduce((a, p) => a + p.timeMinutes, 0);
 
   return (
@@ -219,6 +228,31 @@ export default function PracticePage() {
           </div>
         </form>
       </PlainSection>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Search problems or patterns…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-border bg-card pl-10 pr-3 py-2.5 text-sm text-card-foreground placeholder-gray-500 focus:border-accent focus:outline-none"
+            aria-label="Search problems"
+          />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">⌕</span>
+        </div>
+        <select value={difficultyFilter} onChange={(e) => setDifficultyFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-gray-300 focus:border-accent focus:outline-none" aria-label="Filter by difficulty">
+          <option value="All">All difficulties</option>
+          <option value="Easy">Easy</option>
+          <option value="Medium">Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-gray-300 focus:border-accent focus:outline-none" aria-label="Filter by status">
+          <option value="All">All status</option>
+          <option value="solved">Solved</option>
+          <option value="attempted">Attempted</option>
+        </select>
+      </div>
 
       <FilterPills options={patterns} value={filter} onChange={setFilter} />
 

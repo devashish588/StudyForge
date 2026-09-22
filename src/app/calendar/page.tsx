@@ -90,17 +90,17 @@ export default function CalendarPage() {
       />
 
       <div className={cn("grid grid-cols-1 gap-6", selected && "lg:grid-cols-3")}>
-        <div className={cn("overflow-hidden rounded-xl border border-border bg-card", selected && "lg:col-span-2")}>
+        {/* Desktop monthly grid */}
+        <div className={cn("hidden md:block overflow-hidden rounded-xl border border-border bg-card", selected && "lg:col-span-2")}>
           <div className="grid grid-cols-7 border-b border-border bg-border/20 py-3 text-center text-xs font-bold text-gray-400">
             <div>MON</div><div>TUE</div><div>WED</div><div>THU</div><div>FRI</div><div>SAT</div><div>SUN</div>
           </div>
           <div className="grid grid-cols-7 border-collapse">
             {cells.map((dayNum, idx) => {
-              if (!dayNum) return <div key={idx} className="min-h-[84px] bg-background/40 md:min-h-[110px]" />;
+              if (!dayNum) return <div key={idx} className="min-h-[110px] bg-background/40" />;
               const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
               const outOfRange = dateStr < PROGRAM_START_STR || dateStr > PROGRAM_END_STR;
               const isDayOne = dateStr === PROGRAM_START_STR;
-              const dayTasks = tasks.filter((t) => t.assignedDate === dateStr);
               const mins = heatByDate.get(dateStr)?.minutes ?? 0;
               const lvl = intensityLevel(mins);
               const lvlBg = ["", "ring-1 ring-inset ring-indigo-800", "ring-1 ring-inset ring-indigo-600 bg-indigo-950/40", "ring-1 ring-inset ring-indigo-500 bg-indigo-900/40", "ring-1 ring-inset ring-emerald-500 bg-emerald-950/40", "ring-1 ring-inset ring-emerald-300 bg-emerald-900/50"][lvl];
@@ -108,7 +108,7 @@ export default function CalendarPage() {
               const isSel = dateStr === selected;
               return (
                 <button key={idx} onClick={() => openDay(dateStr)} disabled={outOfRange}
-                  className={cn("flex min-h-[84px] flex-col justify-between border border-border/40 p-1.5 text-left transition md:min-h-[110px] md:p-2",
+                  className={cn("flex min-h-[110px] flex-col justify-between border border-border/40 p-2 text-left transition",
                     isToday ? "border-accent bg-accent/10" : "hover:bg-border/20",
                     outOfRange && "opacity-25", lvlBg, isSel && "outline outline-2 outline-accent")}>
                   <span className="flex items-center justify-between">
@@ -122,10 +122,43 @@ export default function CalendarPage() {
                         <span className={`h-2 w-2 shrink-0 rounded-full ${lvl >= 4 ? "bg-emerald-400" : "bg-indigo-400"}`} aria-hidden />
                         <span className="truncate font-mono text-[11px] text-gray-300">{minutesToHM(mins)}</span>
                       </>
-                    ) : dayTasks.length > 0 ? (
-                      <span className="h-2 w-2 shrink-0 rounded-full bg-gray-600" aria-hidden />
                     ) : null}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Mobile agenda list */}
+        <div className={cn("md:hidden rounded-xl border border-border bg-card overflow-hidden", selected && "hidden")}>
+          <div className="p-3 border-b border-border bg-border/20">
+            <p className="text-xs font-bold text-gray-400">Agenda — {MONTHS[month - 7]} 2026</p>
+          </div>
+          <div className="divide-y divide-border/40 max-h-[60vh] overflow-y-auto">
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((dayNum) => {
+              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+              if (dateStr < PROGRAM_START_STR || dateStr > PROGRAM_END_STR) return null;
+              const mins = heatByDate.get(dateStr)?.minutes ?? 0;
+              const dayTasks = tasks.filter((t) => t.assignedDate === dateStr);
+              if (mins === 0 && dayTasks.length === 0 && dateStr !== today) return null;
+              const isToday = dateStr === today;
+              const lvl = intensityLevel(mins);
+              return (
+                <button key={dayNum} onClick={() => openDay(dateStr)} className={cn("w-full flex items-center gap-3 p-3 text-left hover:bg-border/20", isToday && "bg-accent/10")}>
+                  <div className="shrink-0 text-center w-12">
+                    <p className={cn("text-xs font-bold", isToday ? "text-accent" : "text-gray-400")}>{MONTHS[month - 7].slice(0,3).toUpperCase()}</p>
+                    <p className={cn("text-lg font-black", isToday ? "text-accent" : "text-white")}>{dayNum}</p>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${mins >= 180 ? "bg-emerald-400" : mins > 0 ? "bg-amber-400" : "bg-gray-600"}`} />
+                      <span className="text-xs font-mono text-gray-300">{mins > 0 ? minutesToHM(mins) : "No study"}</span>
+                      {isToday && <span className="text-[10px] font-bold text-accent">TODAY</span>}
+                    </div>
+                    {dayTasks.length > 0 && <p className="mt-1 truncate text-xs text-gray-400">{dayTasks[0].title}{dayTasks.length > 1 ? ` +${dayTasks.length - 1} more` : ""}</p>}
+                  </div>
+                  <span className="text-gray-500">›</span>
                 </button>
               );
             })}

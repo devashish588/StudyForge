@@ -141,7 +141,8 @@ export default function ReviewsPage() {
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5">
-            <h2 className="text-sm font-bold text-card-foreground">Next week&apos;s plan</h2>
+            <h2 className="text-sm font-bold text-card-foreground">Next week&apos;s plan — auto-derived, you decide</h2>
+            <p className="mt-1 text-xs text-gray-500">Based on your current pace and remaining syllabus — adjust as you see fit.</p>
             {!pace ? (
               <p className="mt-1 text-xs text-gray-500">Pace data unavailable.</p>
             ) : (

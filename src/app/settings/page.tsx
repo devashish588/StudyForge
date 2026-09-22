@@ -99,9 +99,39 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* MY JOURNEY — personal, understated */}
+      <Card className="border-indigo-500/20 bg-gradient-to-br from-card to-indigo-950/20">
+        <CardHeader>
+          <CardTitle className="text-indigo-300">My Journey</CardTitle>
+        </CardHeader>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-baseline justify-between">
+            <span className="text-gray-400">Name</span>
+            <span className="font-bold text-white">Devashish</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-gray-400">Daily target</span>
+            <span className="font-bold text-white">{targetHours}h · stretch {stretchHours}h</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-gray-400">Roadmap target</span>
+            <span className="font-bold text-white">Dec 31, 2026</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-gray-400">GATE syllabus target</span>
+            <span className="font-bold text-purple-300">{syllabusDeadline || "Jan 15, 2027"}</span>
+          </div>
+          <div className="flex items-baseline justify-between">
+            <span className="text-gray-400">GATE paper</span>
+            <span className="font-bold text-white">{paperDate || "Feb 6–21 window"}</span>
+          </div>
+          <p className="pt-2 text-xs italic text-gray-500">This is your system — 99 days of focused execution toward 2027.</p>
+        </div>
+      </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-card-foreground">Study — daily targets</CardTitle>
+          <CardTitle className="text-card-foreground">Planning — daily targets</CardTitle>
         </CardHeader>
         <form onSubmit={handleSaveSettings} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -327,6 +357,17 @@ export default function SettingsPage() {
             Start 7-Day Test
           </button>
         )}
+      </Card>
+
+      <Card className="border-border/40 bg-card/50">
+        <CardHeader>
+          <CardTitle className="text-gray-400 text-sm">About</CardTitle>
+        </CardHeader>
+        <p className="text-xs leading-relaxed text-gray-400">StudyForge is a personal study operating system — 99 days from Sep 24 to Dec 31, plus GATE 2027 through January.</p>
+        <div className="mt-6 text-center">
+          <p className="text-sm font-bold tracking-tight text-gray-300">StudyForge</p>
+          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500">Made by Devashish · for Devashish</p>
+        </div>
       </Card>
     </div>
   );

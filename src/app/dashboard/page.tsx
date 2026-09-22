@@ -206,9 +206,12 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* 2 — TODAY'S MISSION */}
+      {/* 2 — TODAY'S MISSION — overview only, CTA is Today */}
       <section>
-        <h2 className="text-2xl font-bold tracking-tight text-white md:text-[1.7rem]">Today&apos;s mission</h2>
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-2xl font-bold tracking-tight text-white md:text-[1.7rem]">Today&apos;s mission</h2>
+          <Link href="/today" className="text-sm font-bold text-accent hover:underline">Open Today →</Link>
+        </div>
         <p className="mt-1 text-3xl font-extrabold text-white md:text-4xl">
           {minutesToHM(actual)} <span className="text-lg font-semibold text-gray-500">/ {minutesToHM(target)}</span>
         </p>
@@ -227,25 +230,10 @@ export default function DashboardPage() {
             </li>
           ))}
         </ul>
-        <button onClick={startNext} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-base font-bold text-white shadow-md transition hover:bg-accent-hover">
-          <Play className="h-5 w-5" /> Start next session
-        </button>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button onClick={() => setCheckInOpen(true)} className="flex items-center gap-1.5 rounded-xl border border-border bg-border/30 px-4 py-2.5 text-[13px] font-bold text-gray-200 hover:bg-border/60">
-            <CalendarCheck className="h-4 w-4" /> Check-in
-          </button>
-          <button onClick={() => setWrapUpOpen(true)} className="flex items-center gap-1.5 rounded-xl border border-border bg-border/30 px-4 py-2.5 text-[13px] font-bold text-gray-200 hover:bg-border/60">
-            <MoonStar className="h-4 w-4" /> Wrap-up
-          </button>
-          <button onClick={() => setGenerateOpen(true)} className="rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-[13px] font-bold text-accent hover:bg-accent/20">
-            Generate my day
-          </button>
-        </div>
-        {nextSession && (
-          <p className="mt-3 text-sm text-indigo-200">
-            Next up: <span className="font-bold text-white">{nextSession.title}</span> ({nextSession.category} • {nextSession.minutes} min)
-          </p>
-        )}
+        <Link href="/today" className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-4 text-base font-bold text-white shadow-md transition hover:bg-accent-hover">
+          <Play className="h-5 w-5" /> Go to Today — Start Next Session
+        </Link>
+        <p className="mt-2 text-center text-xs text-gray-500">Execution lives on Today — dashboard is overview</p>
       </section>
 
       {/* 3 — NEXT SESSION + UP NEXT + GATE */}
@@ -256,9 +244,9 @@ export default function DashboardPage() {
             <div className="mt-3">
               <p className="text-lg font-bold text-white">{data.nextCandidates[0].title}</p>
               <p className="mt-1 text-[15px] text-gray-400">{data.nextCandidates[0].category} • {data.nextCandidates[0].minutes} minutes</p>
-              <button onClick={startNext} className="mt-4 rounded-xl bg-accent px-8 py-3 text-sm font-bold text-white shadow-md transition hover:bg-accent-hover">
-                Start
-              </button>
+              <Link href="/today" className="mt-4 inline-flex rounded-xl bg-accent px-8 py-3 text-sm font-bold text-white shadow-md transition hover:bg-accent-hover">
+                Start on Today
+              </Link>
             </div>
           ) : (
             <p className="mt-3 text-[15px] text-gray-400">Nothing scheduled. Generate your day to fill it.</p>
