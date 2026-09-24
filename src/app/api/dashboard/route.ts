@@ -204,6 +204,74 @@ export async function GET(req: Request) {
       select: { id: true, title: true, category: true, assignedDate: true, estimatedTimeMinutes: true },
     });
 
+    // 14. Autonomous orchestrator — carry notice, journey, schedule status.
+    // All derived from real rows; no fake percentages, no invented progress.
+    const parseJson = <T,>(s: string | null | undefined, fb: T): T => {
+      try { const v = JSON.parse(s || ""); return (v ?? fb) as T; } catch { return fb; }
+    };
+    const todayCarry = parseJson<{ title: string; minutes: number; movedFrom?: string | null }[]>(studyDay.carryOverJson ?? "[]", []);
+    const yesterdayDate = addDays(today, -1);
+    const yesterdayRow = await prisma.studyDay.findUnique({
+      where: { date: yesterdayDate },
+      select: { mustDoJson: true, shouldDoJson: true, actualMinutes: true },
+    });
+    const yItems = [
+      ...parseJson<{ title: string; done: boolean; minutes: number }[]>(yesterdayRow?.mustDoJson, []),
+      ...parseJson<{ title: string; done: boolean; minutes: number }[]>(yesterdayRow?.shouldDoJson, []),
+    ];
+    const yUnfinished = yItems.filter((i) => !i.done);
+    const carryNotice = {
+      hasCarry: todayCarry.length > 0 || yUnfinished.length > 0,
+      prevDate: yesterdayDate,
+      count: todayCarry.length || yUnfinished.length,
+      minutes: todayCarry.reduce((a, i) => a + (i.minutes || 0), 0) || yUnfinished.reduce((a, i) => a + (i.minutes || 0), 0),
+      items: (todayCarry.length ? todayCarry : yUnfinished).slice(0, 4),
+      resolved: todayCarry.length === 0 && yUnfinished.length === 0,
+    };
+
+    const AI_CATS = ["ML", "Generative AI", "RAG", "AI Agents"];
+    const aiTasks = allRoadmapTasks.filter((t) => AI_CATS.includes(t.category));
+    const aiDone = aiTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
+    const sweTasks = allRoadmapTasks.filter((t) => !AI_CATS.includes(t.category));
+    const sweDone = sweTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
+    const gateTopics = await prisma.gateTopic.findMany({ select: { completed: true } });
+    const gateDone = gateTopics.filter((t) => t.completed).length;
+    const completedDays = activeDays.filter((d) => d.actualMinutes >= 180).length;
+    const journey = {
+      completedDays,
+      totalDays: PROGRAM_TOTAL_DAYS,
+      roadmapPercent,
+      aiPercent: aiTasks.length ? Math.round((aiDone / aiTasks.length) * 100) : 0,
+      swePercent: sweTasks.length ? Math.round((sweDone / sweTasks.length) * 100) : 0,
+      gateFirstPassPercent: gateTopics.length ? Math.round((gateDone / gateTopics.length) * 100) : 0,
+      roadmapDeadline: PROGRAM_END_STR,
+      gateDeadline: syllabusDeadline,
+    };
+
+    const remainingRoadmap = await prisma.roadmapTask.findMany({
+      where: { status: { notIn: ["COMPLETED", "PRACTICE"] } },
+      select: { estimatedTimeMinutes: true, actualMinutes: true },
+    });
+    const remainingGate = await prisma.gateTopic.findMany({
+      where: { completed: false },
+      select: { estimatedMinutes: true },
+    });
+    const totalRemaining = remainingRoadmap.reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0)
+      + remainingGate.reduce((a, t) => a + (t.estimatedMinutes ?? 90), 0);
+    const daysLeftNum = Math.max(1, diffDays(today, PROGRAM_END_STR) + 1);
+    const requiredPerDay = Math.round(totalRemaining / daysLeftNum);
+    const last7Actual = last7.filter((d) => d.minutes > 0).map((d) => d.minutes);
+    const currentPerDay = last7Actual.length ? Math.round(last7Actual.reduce((a, b) => a + b, 0) / last7Actual.length) : 0;
+    const risk = parseJson<{ status?: string }>(studyDay.scheduleRiskJson ?? "{}", {});
+    const schedule = {
+      status: risk.status ?? (requiredPerDay <= Math.max(currentPerDay, targetMinutes) ? "ON_TRACK" : "AT_RISK"),
+      requiredPerDay,
+      currentPerDay,
+      carryOverMinutes: carryNotice.minutes,
+      totalRemainingMinutes: totalRemaining,
+      daysLeft: daysLeftNum,
+    };
+
     return NextResponse.json({
       user: user ? { ...user, currentStreak: streak.current, longestStreak: Math.max(streak.longest, user.longestStreak) } : null,
       studyDay: { ...studyDay, targetMinutes },
@@ -231,6 +299,9 @@ export async function GET(req: Request) {
         phase: currentWeek ? { title: currentWeek.title, weekNumber: currentWeek.weekNumber, focusArea: currentWeek.focusArea } : null,
         upNext,
       },
+      carryNotice,
+      journey,
+      schedule,
       monthly: {
         roadmapPercent,
         gatePercent,

@@ -84,6 +84,15 @@ model StudyDay {
 
   sessions StudySession[]
 
+  // Autonomous orchestrator (additive, nullable-safe).
+  journeyDay        Int?
+  stretchMinutes    Int      @default(600)
+  carryOverJson     String   @default("[]")
+  scheduleRiskJson  String   @default("{}")
+  rebalanceJson     String   @default("{}")
+  missedRecovery    Boolean  @default(false)
+  adaptationJson    String   @default("{}")
+
   @@index([date])
 }
 
@@ -107,6 +116,12 @@ model StudySession {
   completed       Boolean   @default(false)
   interruptions   Int       @default(0)
   notes           String?
+  // Autonomous orchestrator: atomic progress + cognitive block routing.
+  planItemId      String?
+  blockType       String    @default("EASY_APPLY") // CARRY_OVER, EASY_START, HARD_DEEP, EASY_APPLY, RECALL
+  remainingMinutes Int?
+  difficultyRating String?  // Easy | Normal | Hard (post-completion calibration)
+  pausedAt        String?
 
   @@index([date])
   @@index([category])
@@ -143,6 +158,16 @@ model RoadmapTask {
   plannedMinutes       Int         @default(60)
   actualMinutes        Int         @default(0)
   assignedDate         String      @default("2026-08-24")
+  // Autonomous orchestrator: atomicity + priority + dependencies (additive).
+  remainingMinutes     Int?
+  completionPercent    Int         @default(0)
+  carryOverCount       Int         @default(0)
+  sourceDate           String?
+  priority             String      @default("CORE") // CORE | IMPORTANT | OPTIONAL
+  difficulty           String      @default("Medium") // Easy | Medium | Hard
+  prerequisites        String      @default("[]") // JSON array of RoadmapTask ids/titles
+  track                String      @default("") // AI_ENGINEERING | SOFTWARE_ENGINEERING | GATE_PREP | ""
+  whySelected          String?
 
   @@index([status])
   @@index([assignedDate])
@@ -179,6 +204,13 @@ model GateTopic {
   pyqTarget        Int     @default(10)
   lastStudied      String?
   completedAt      String?
+  // Autonomous orchestrator atomicity (additive).
+  remainingMinutes  Int?
+  completionPercent Int     @default(0)
+  carryOverCount    Int     @default(0)
+  sourceDate        String?
+  priority          String  @default("CORE") // CORE | IMPORTANT | OPTIONAL
+  whySelected       String?
 }
 
 model GateQuestion {
@@ -262,6 +294,9 @@ model PracticeProblem {
   timeMinutes    Int      @default(15)
   notes          String?
   retryDate      String?
+  remainingMinutes Int?
+  completionPercent Int   @default(0)
+  carryOverCount Int      @default(0)
   createdAt      DateTime @default(now())
 }
 
@@ -285,6 +320,13 @@ model ProjectTask {
   milestoneStage String
   title          String
   completed      Boolean  @default(false)
+  // Autonomous orchestrator (additive).
+  estimatedMinutes Int     @default(60)
+  remainingMinutes Int?
+  completionPercent Int    @default(0)
+  dueDate        String?
+  priority       String   @default("IMPORTANT") // CORE | IMPORTANT | OPTIONAL
+  carryOverCount Int      @default(0)
 }
 
 model Note {

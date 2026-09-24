@@ -60,6 +60,22 @@ interface PlanItem {
   refType?: string; refId?: string; subjectName?: string; topicName?: string;
   why: string; done: boolean; sessionId?: string | null;
   pyqTarget?: number; pyqDone?: number; movedFrom?: string;
+  block?: "CARRY_OVER" | "EASY_START" | "HARD_DEEP" | "EASY_APPLY" | "RECALL";
+  track?: string; priority?: string; difficulty?: string;
+  actualMinutes?: number; remainingMinutes?: number; completionPercent?: number;
+  carryOverCount?: number; sourceDate?: string | null;
+}
+
+interface MissionBlock { title: string; minutes: number }
+
+interface MissionPayload {
+  date: string;
+  journey: { day: number; total: number; daysLeft: number; phase: string; targetMinutes: number; stretchMinutes: number; gateDeadline: string };
+  carryOver: PlanItem[]; easyStart: PlanItem[]; hardDeepWork: PlanItem[]; easyApply: PlanItem[]; recall: PlanItem[];
+  totalPlannedMinutes: number; remainingCapacity: number;
+  scheduleRisk: { status: string; message: string; recovery: string[]; requiredPerDay: number; sustainablePerDay: number; gapPerDay: number };
+  rebalance: { reason: string };
+  deferred: PlanItem[];
 }
 
 interface Notebook {
@@ -77,6 +93,11 @@ interface PlanPayload {
     items: PlanItem[]; calibration: Record<string, number>; logic: string[];
     pace: any; week: any; horizons: any; tomorrowCandidates: PlanItem[];
   };
+  mission?: MissionPayload;
+  journeyDay?: number;
+  stretchMinutes?: number;
+  scheduleRisk?: MissionPayload["scheduleRisk"];
+  remainingCapacity?: number;
   notebook: Notebook;
   doubts: { id: string; text: string; status: string }[];
   yesterday: any;
@@ -261,6 +282,38 @@ export default function TodayPage() {
     }
   };
 
+  const logPartial = async (item: PlanItem, actualMinutes: number, carry: boolean) => {
+    try {
+      await patchPlan({ action: "log-progress", itemId: item.id, actualMinutes, stopped: true, carry });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const rateDifficulty = async (item: PlanItem, rating: "Easy" | "Normal" | "Hard") => {
+    try {
+      await patchPlan({ action: "rate-difficulty", itemId: item.id, rating });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const closeDay = async () => {
+    try {
+      const res = await fetch("/api/today-plan", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, action: "close-day" }),
+      });
+      if (res.ok) {
+        const { summary } = await res.json();
+        alert(`Day complete — ${summary.completed} done, ${summary.partial} partial, ${summary.missed} missed. Carry-over: ${Math.round(summary.carryOverMinutes / 60 * 10) / 10}h. ${summary.note}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    refreshAll();
+  };
+
   const startPlanItem = async (item: PlanItem) => {
     try {
       const res = await fetch("/api/sessions", {
@@ -269,9 +322,11 @@ export default function TodayPage() {
           date,
           title: item.topicName ? `${item.subjectName ?? ""} — ${item.topicName}`.replace(/^ — /, "") : item.title,
           category: KIND_CATEGORY[item.kind] ?? "Roadmap",
-          plannedMinutes: item.minutes,
+          plannedMinutes: item.remainingMinutes ?? item.minutes,
           taskId: item.refType === "roadmapTask" ? item.refId : null,
           notes: `plan:${date}:${item.id}`,
+          planItemId: item.id,
+          blockType: item.block ?? "EASY_APPLY",
         }),
       });
       if (!res.ok) throw new Error("Could not create session");
@@ -381,17 +436,64 @@ export default function TodayPage() {
       <div className="rounded-xl border border-border/60 bg-card/50 px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3 text-xs font-bold">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 border border-accent/20 px-3 py-1 text-accent">
-            DAY {programDay} / 99
+            DAY {plan?.mission?.journey.day ?? programDay} / {plan?.mission?.journey.total ?? 99}
           </span>
-          <span className="text-gray-400">· {daysLeft} days to Dec 31</span>
+          <span className="text-gray-400">· {plan?.mission?.journey.daysLeft ?? daysLeft} days to Dec 31</span>
+          {plan?.mission?.journey.phase && plan.mission.journey.phase !== "build" && (
+            <span className="rounded-full bg-purple-500/10 border border-purple-500/30 px-3 py-1 text-purple-300 capitalize">{plan.mission.journey.phase}</span>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs">
+          <span className="text-gray-500">Target:</span>
+          <span className="font-bold text-white">{minutesToHM(plan?.mission?.journey.targetMinutes ?? target)}</span>
+          <span className="text-gray-600">·</span>
+          <span className="text-gray-500">Stretch:</span>
+          <span className="font-bold text-gray-300">{minutesToHM(plan?.mission?.journey.stretchMinutes ?? plan?.stretchMinutes ?? 600)}</span>
+          <span className="text-gray-600">·</span>
           <span className="text-gray-500">GATE syllabus:</span>
           <span className="font-bold text-purple-300">Jan 15</span>
-          <span className="text-gray-600">·</span>
-          <span className="text-gray-400">{plan?.plan.horizons?.crackLabel ?? "~4.5 months"} to exam</span>
         </div>
       </div>
+
+      {/* 1b — carry-over banner (spec §22): visually distinct, not alarming */}
+      {((plan?.mission?.carryOver.length ?? 0) > 0 || items.some((i) => i.movedFrom && !i.done)) && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 animate-fadeIn" role="status" aria-label="Carried over from previous day">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-amber-300">
+            Carried from {(plan?.mission?.carryOver[0]?.movedFrom ?? items.find((i) => i.movedFrom && !i.done)?.movedFrom ?? "previous day")?.slice(5)}
+          </p>
+          <p className="mt-1 text-sm text-gray-200">
+            {(plan?.mission?.carryOver.length ?? items.filter((i) => i.movedFrom && !i.done).length)} task{(plan?.mission?.carryOver.length ?? 0) === 1 ? "" : "s"} ·{" "}
+            {minutesToHM((plan?.mission?.carryOver ?? items.filter((i) => i.movedFrom && !i.done)).reduce((a, b) => a + b.minutes, 0))} — unfinished work carried forward automatically
+          </p>
+          <ul className="mt-2 space-y-1">
+            {(plan?.mission?.carryOver ?? items.filter((i) => i.movedFrom && !i.done)).slice(0, 4).map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate text-gray-300">{c.title} <span className="font-mono text-amber-300/80">· {c.minutes}m</span></span>
+                {!c.done && (
+                  <button onClick={() => startPlanItem(c)} className="shrink-0 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 min-h-[36px]">
+                    Start
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* 1c — schedule risk (spec §14): never hidden */}
+      {plan?.mission?.scheduleRisk && plan.mission.scheduleRisk.status !== "ON_TRACK" && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 animate-fadeIn" role="alert">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-rose-300">
+            ⚠ Schedule risk detected — {plan.mission.scheduleRisk.status === "OVERLOAD" ? "overload" : "at risk"}
+          </p>
+          <p className="mt-1 text-sm text-gray-200">{plan.mission.scheduleRisk.message}</p>
+          {plan.mission.scheduleRisk.recovery.length > 0 && (
+            <ul className="mt-2 space-y-1 text-[13px] text-gray-400">
+              {plan.mission.scheduleRisk.recovery.map((r, i) => <li key={i}>• {r}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* 2 — header: date + target + progress (Today = execution) */}
       <header className="pt-2">
@@ -459,6 +561,39 @@ export default function TodayPage() {
           <button onClick={() => setWrapUpOpen(true)} className="mt-4 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white">Daily wrap-up</button>
         </section>
       ) : null}
+
+      {/* 4b — TODAY'S MISSION: Easy → Hard → Easy → Recall (planner decides, user executes) */}
+      {plan?.mission && (
+        <section aria-label="Today's mission">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-xl font-bold tracking-tight text-white">Today&apos;s mission</h2>
+            <span className="text-xs font-semibold text-gray-500">
+              {minutesToHM(plan.mission.totalPlannedMinutes)} planned · {minutesToHM(plan.mission.remainingCapacity)} spare
+            </span>
+          </div>
+          <div className="mt-3 space-y-3">
+            <MissionBlock
+              label="Easy start" purpose="Warm up the brain" items={plan.mission.easyStart}
+              onToggle={togglePlanItem} onStart={startPlanItem} onPartial={logPartial} onRate={rateDifficulty}
+            />
+            <MissionBlock
+              label="Hard deep work" purpose="Largest cognitive effort of the day" items={plan.mission.hardDeepWork} highlight
+              onToggle={togglePlanItem} onStart={startPlanItem} onPartial={logPartial} onRate={rateDifficulty}
+            />
+            <MissionBlock
+              label="Easy apply" purpose="Convert understanding into execution" items={plan.mission.easyApply}
+              onToggle={togglePlanItem} onStart={startPlanItem} onPartial={logPartial} onRate={rateDifficulty}
+            />
+            <MissionBlock
+              label="Recall" purpose="Retention" items={plan.mission.recall}
+              onToggle={togglePlanItem} onStart={startPlanItem} onPartial={logPartial} onRate={rateDifficulty}
+            />
+          </div>
+          {plan.mission.rebalance?.reason && plan.mission.rebalance.reason !== "All tracks on pace — allocation unchanged." && (
+            <p className="mt-2 text-xs text-gray-500">Rebalance: {plan.mission.rebalance.reason}</p>
+          )}
+        </section>
+      )}
 
       {/* session handoff — subtle, not competing with main CTA */}
       {handoff && (
@@ -715,6 +850,10 @@ export default function TodayPage() {
         <button onClick={() => setWrapUpOpen(true)} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 py-4 text-base font-bold text-white transition hover:bg-emerald-500">
           <MoonStar className="h-5 w-5" /> Daily wrap-up
         </button>
+        <button onClick={closeDay} title="Close the day: unfinished work with remaining minutes carries to tomorrow automatically"
+          className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-6 py-4 text-base font-bold text-indigo-200 transition hover:bg-indigo-500/20">
+          <CheckCircle2 className="h-5 w-5" /> Close day & carry forward
+        </button>
         {backlog.length > 0 && (
           <button onClick={() => setRecoveryOpen(true)} className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-4 text-base font-bold text-amber-300 transition hover:bg-amber-500/20">
             <AlertTriangle className="h-5 w-5" /> {backlog.length} missed — recover
@@ -773,6 +912,92 @@ export default function TodayPage() {
   async function carryToTomorrow(id: string) {
     try { await patchPlan({ action: "move-tomorrow", itemId: id }); } catch {}
   }
+}
+
+/* ---------------- mission blocks (autonomous orchestrator) ---------------- */
+
+function MissionBlock({ label, purpose, items, highlight, onToggle, onStart, onPartial, onRate }: {
+  label: string; purpose: string; items: PlanItem[]; highlight?: boolean;
+  onToggle: (i: PlanItem) => void; onStart: (i: PlanItem) => void;
+  onPartial: (i: PlanItem, actual: number, carry: boolean) => void;
+  onRate: (i: PlanItem, r: "Easy" | "Normal" | "Hard") => void;
+}) {
+  const [partialFor, setPartialFor] = useState<string | null>(null);
+  if (items.length === 0) return null;
+  return (
+    <div className={`rounded-xl border p-4 ${highlight ? "border-accent/40 bg-accent/5" : "border-border bg-card"}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-extrabold uppercase tracking-widest text-gray-200">{label}</h3>
+        <span className="text-xs text-gray-500">{purpose} · {items.reduce((a, i) => a + i.minutes, 0)}m</span>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {items.map((it) => (
+          <li key={it.id} className="rounded-lg border border-border/60 bg-border/10 p-3">
+            <div className="flex items-start gap-3">
+              <input type="checkbox" checked={it.done} onChange={() => onToggle(it)}
+                className="mt-1 h-5 w-5 shrink-0 accent-emerald-500" aria-label={`Done: ${it.title}`} />
+              <div className="min-w-0 flex-1">
+                <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}>
+                  {it.title} <span className="ml-1 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span>
+                  {it.completionPercent ? <span className="ml-1 font-mono text-xs text-indigo-300">{it.completionPercent}%</span> : null}
+                  {it.carryOverCount ? <span className="ml-1 text-[11px] font-bold text-amber-300">carry #{it.carryOverCount}</span> : null}
+                </p>
+                <p className="mt-1 text-xs italic text-gray-500 line-clamp-2">Why: {it.why}</p>
+                {it.done && (
+                  <div className="mt-2 flex items-center gap-1.5" aria-label="Rate difficulty">
+                    <span className="text-[11px] text-gray-500">Difficulty:</span>
+                    {(["Easy", "Normal", "Hard"] as const).map((r) => (
+                      <button key={r} onClick={() => onRate(it, r)}
+                        className="rounded-md border border-border px-2 py-1 text-[11px] font-bold text-gray-400 hover:bg-border/40">
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {!it.done && (
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  <button onClick={() => onStart(it)}
+                    className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-white hover:bg-accent-hover min-h-[36px]">
+                    Start
+                  </button>
+                  <button onClick={() => setPartialFor(partialFor === it.id ? null : it.id)}
+                    className="rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold text-gray-400 hover:bg-border/40">
+                    I stopped here
+                  </button>
+                </div>
+              )}
+            </div>
+            {partialFor === it.id && !it.done && (
+              <PartialLogger
+                item={it}
+                onCancel={() => setPartialFor(null)}
+                onSave={(mins) => { setPartialFor(null); onPartial(it, mins, true); }}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PartialLogger({ item, onCancel, onSave }: { item: PlanItem; onCancel: () => void; onSave: (mins: number) => void }) {
+  const [mins, setMins] = useState(String(Math.floor(item.minutes / 2)));
+  const actual = Math.max(0, Math.min(item.minutes, Number(mins) || 0));
+  const remaining = item.minutes - actual;
+  return (
+    <div className="mt-2 rounded-lg border border-border/60 bg-card p-3 animate-fadeIn">
+      <p className="text-xs text-gray-400">How many minutes did you actually complete? The remaining {remaining}m carries forward automatically.</p>
+      <div className="mt-2 flex items-center gap-2">
+        <input value={mins} onChange={(e) => setMins(e.target.value)} inputMode="numeric" aria-label="Actual minutes completed"
+          className="w-20 rounded-lg border border-border bg-border/30 px-2 py-2 text-sm text-white focus:border-accent focus:outline-none" />
+        <span className="text-xs text-gray-500">/ {item.minutes}m → {remaining}m carries</span>
+        <button onClick={() => onSave(actual)} className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-white">Save & carry</button>
+        <button onClick={onCancel} className="rounded-lg border border-border px-3 py-2 text-xs font-bold text-gray-400">Cancel</button>
+      </div>
+    </div>
+  );
 }
 
 /* ---------------- tier list ---------------- */

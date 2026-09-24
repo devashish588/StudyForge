@@ -435,7 +435,7 @@ async function main() {
         {
           title: "Tree Models, SVM & Clustering",
           category: "ML",
-          subtopics: JSON.stringify(["Entropy & Gini Impurity", "Random Forest ensemble", "KNN Classification", "SVM Margins & Kernels", "K-Means Clustering", "FastAPI Serving"]),
+          subtopics: JSON.stringify(["Entropy & Gini Impurity", "Random Forest ensemble", "KNN Classification", "SVM Margins & Kernels", "K-Means Clustering", "Model selection framework", "FastAPI Serving"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Compare KNN vs SVM vs Random Forest; deploy ML prediction API using FastAPI",
           status: "TODO",
@@ -465,7 +465,7 @@ async function main() {
         {
           title: "LLMs, Transformers & Prompt Engineering",
           category: "Generative AI",
-          subtopics: JSON.stringify(["Tokens & Context Windows", "Few-shot & System Prompting", "Structured JSON Outputs"]),
+          subtopics: JSON.stringify(["Tokens & Context Windows", "Attention & Transformer intuition", "Few-shot & System Prompting", "Structured JSON Outputs", "Model APIs & model behavior basics"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Build prompt benchmark suite",
           status: "TODO",
@@ -475,7 +475,7 @@ async function main() {
         {
           title: "LLM API Integration & Function Calling",
           category: "Generative AI",
-          subtopics: JSON.stringify(["Streaming responses", "Conversation memory", "Function calling tools", "Chatbot UI"]),
+          subtopics: JSON.stringify(["Streaming responses", "Conversation memory", "Function calling & structured tool use", "External APIs", "Hallucination handling & output validation", "Chatbot UI"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Build AI Chatbot v1 with streaming & tools",
           status: "TODO",
@@ -485,7 +485,7 @@ async function main() {
         {
           title: "Token/Cost Optimization & AI Capstone Demo",
           category: "Generative AI",
-          subtopics: JSON.stringify(["Token & cost optimization", "Caching & batching strategies", "AI project polish", "Recorded demo walkthrough"]),
+          subtopics: JSON.stringify(["Token & cost optimization", "Caching & batching strategies", "Model routing & fallbacks", "Latency & reliability basics", "Error handling", "AI project polish", "Recorded demo walkthrough"]),
           estimatedTimeMinutes: 150,
           practiceReq: "Ship optimized AI demo with cost report",
           status: "TODO",
@@ -505,7 +505,7 @@ async function main() {
         {
           title: "Embeddings, Vector Databases & Chunking",
           category: "RAG",
-          subtopics: JSON.stringify(["Cosine Similarity", "ChromaDB / Pinecone", "Recursive Text Splitting", "HyDE & Reranking"]),
+          subtopics: JSON.stringify(["Embeddings & Cosine Similarity", "Semantic search", "ChromaDB / Pinecone", "Metadata filtering", "Recursive Text Splitting & chunking strategy", "BM25 & hybrid retrieval", "HyDE & Reranking", "Retrieval evaluation basics"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Build PDF Question-Answering RAG system",
           status: "TODO",
@@ -515,7 +515,7 @@ async function main() {
         {
           title: "RAG Evaluation & Hardening",
           category: "RAG",
-          subtopics: JSON.stringify(["Retrieval precision", "Citation grounding", "Latency optimization"]),
+          subtopics: JSON.stringify(["Retrieval precision & RAG quality metrics", "Citation grounding", "Latency optimization", "Reranking tuning", "Error analysis"]),
           estimatedTimeMinutes: 150,
           practiceReq: "Evaluation harness + demo video",
           status: "TODO",
@@ -535,7 +535,7 @@ async function main() {
         {
           title: "Autonomous AI Agents & Multi-Tool Workflows",
           category: "AI Agents",
-          subtopics: JSON.stringify(["ReAct Loop", "Tool definition", "Stateful memory", "Prompt injection defense"]),
+          subtopics: JSON.stringify(["ReAct Loop", "Planning & task decomposition", "Tool/function calling & structured tool use", "Stateful memory", "LangGraph/orchestration basics", "External APIs", "Human-in-the-loop", "Prompt injection defense", "Tool security & data-leakage safeguards"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Build multi-tool autonomous agentic project",
           status: "TODO",
@@ -575,7 +575,7 @@ async function main() {
         {
           title: "Observability, Scaling & Kubernetes Basics",
           category: "DevOps",
-          subtopics: JSON.stringify(["Background jobs & queues", "Monitoring & logging", "Rate limiting, security & scaling", "Kubernetes basics (Pods, Deployments, Services)"]),
+          subtopics: JSON.stringify(["Background jobs & queues", "Monitoring & logging", "Tracing & observability for AI systems", "Rate limiting, security & scaling", "Sensitive-info redaction & access control", "Kubernetes basics (Pods, Deployments, Services)"]),
           estimatedTimeMinutes: 120,
           practiceReq: "Add caching + monitoring + K8s manifests",
           status: "TODO",

@@ -25,6 +25,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const date: string = body.date ?? todayStr();
     const { title, category, taskId, subjectId, plannedMinutes, blockLabel, clockStart, clockEnd, notes } = body;
+    const { planItemId, blockType, remainingMinutes, difficultyRating } = body as {
+      planItemId?: string; blockType?: string; remainingMinutes?: number; difficultyRating?: string;
+    };
     if (!title || !String(title).trim()) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
@@ -51,6 +54,10 @@ export async function POST(req: Request) {
         notes: notes || null,
         completed: false,
         actualMinutes: 0,
+        planItemId: planItemId || null,
+        blockType: blockType || "EASY_APPLY",
+        remainingMinutes: remainingMinutes !== undefined ? Number(remainingMinutes) : null,
+        difficultyRating: difficultyRating || null,
       },
     });
     return NextResponse.json(session);
@@ -65,6 +72,9 @@ export async function PATCH(req: Request) {
   try {
     const body = await req.json();
     const { id, title, category, plannedMinutes, actualMinutes, completed, clockStart, clockEnd, notes, blockLabel } = body;
+    const { planItemId, blockType, remainingMinutes, difficultyRating, pausedAt } = body as {
+      planItemId?: string; blockType?: string; remainingMinutes?: number; difficultyRating?: string; pausedAt?: string;
+    };
     if (!id) return NextResponse.json({ error: "Session id required" }, { status: 400 });
     const existing = await prisma.studySession.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -81,6 +91,13 @@ export async function PATCH(req: Request) {
         ...(clockEnd !== undefined && { clockEnd }),
         ...(notes !== undefined && { notes }),
         ...(blockLabel !== undefined && { blockLabel: String(blockLabel) }),
+        // Autonomous orchestrator: partial completion ("I stopped here") +
+        // post-completion difficulty calibration (Easy/Normal/Hard).
+        ...(planItemId !== undefined && { planItemId: planItemId || null }),
+        ...(blockType !== undefined && { blockType: String(blockType) }),
+        ...(remainingMinutes !== undefined && { remainingMinutes: remainingMinutes === null ? null : Number(remainingMinutes) }),
+        ...(difficultyRating !== undefined && { difficultyRating: difficultyRating || null }),
+        ...(pausedAt !== undefined && { pausedAt: pausedAt || null }),
       },
     });
 
@@ -89,6 +106,56 @@ export async function PATCH(req: Request) {
     const delta = updated.actualMinutes - existing.actualMinutes;
     if (delta !== 0) {
       await creditDay(updated.date, delta, updated.category);
+    }
+
+    // Autonomous orchestrator: propagate atomic progress to the linked plan
+    // item (Start → Pause/Resume → Complete / "I stopped here"). The plan
+    // item keeps remainingMinutes so carry-over is exact, never duplicated.
+    const linkId = (updated as { planItemId?: string | null }).planItemId;
+    if (linkId && (delta !== 0 || completed !== undefined)) {
+      try {
+        const day = await prisma.studyDay.findUnique({
+          where: { date: updated.date },
+          select: { mustDoJson: true, shouldDoJson: true, couldDoJson: true },
+        });
+        if (day) {
+          const parse = (s: string) => { try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
+          const buckets = {
+            mustDoJson: parse(day.mustDoJson),
+            shouldDoJson: parse(day.shouldDoJson),
+            couldDoJson: parse(day.couldDoJson),
+          } as Record<"mustDoJson" | "shouldDoJson" | "couldDoJson", { id: string; minutes: number; actualMinutes?: number; remainingMinutes?: number; completionPercent?: number; done: boolean }[]>;
+          let touched = false;
+          for (const key of Object.keys(buckets) as (keyof typeof buckets)[]) {
+            const idx = buckets[key].findIndex((i) => i.id === linkId);
+            if (idx >= 0) {
+              const it = buckets[key][idx];
+              const actual = Math.min(it.minutes, (it.actualMinutes ?? 0) + Math.max(0, delta));
+              const remaining = Math.max(0, it.minutes - actual);
+              buckets[key][idx] = {
+                ...it,
+                actualMinutes: actual,
+                remainingMinutes: remaining,
+                completionPercent: it.minutes > 0 ? Math.round((actual / it.minutes) * 100) : 0,
+                done: updated.completed === true && remaining === 0 ? true : it.done,
+              };
+              touched = true;
+            }
+          }
+          if (touched) {
+            await prisma.studyDay.update({
+              where: { date: updated.date },
+              data: {
+                mustDoJson: JSON.stringify(buckets.mustDoJson),
+                shouldDoJson: JSON.stringify(buckets.shouldDoJson),
+                couldDoJson: JSON.stringify(buckets.couldDoJson),
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Plan item propagation error:", e);
+      }
     }
 
     return NextResponse.json(updated);

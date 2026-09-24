@@ -30,6 +30,16 @@ export interface PlanItem {
   pyqTarget?: number;
   pyqDone?: number;
   movedFrom?: string;
+  // Autonomous orchestrator — atomic execution state (all optional, backward-compatible).
+  block?: "CARRY_OVER" | "EASY_START" | "HARD_DEEP" | "EASY_APPLY" | "RECALL";
+  track?: "GATE" | "AI_ENGINEERING" | "SOFTWARE_ENGINEERING";
+  priority?: "CORE" | "IMPORTANT" | "OPTIONAL";
+  difficulty?: string;
+  actualMinutes?: number;
+  remainingMinutes?: number;
+  completionPercent?: number;
+  carryOverCount?: number;
+  sourceDate?: string | null;
 }
 
 export interface Doubt {
@@ -130,6 +140,10 @@ export interface GateTopicInput {
   lastStudied: string | null;
   pyqsSolved: number;
   openErrors: number;
+  remainingMinutes?: number | null;
+  completionPercent?: number;
+  carryOverCount?: number;
+  priority?: string;
 }
 
 export interface RoadmapTaskInput {
@@ -142,6 +156,13 @@ export interface RoadmapTaskInput {
   practiceReq: string;
   weekTitle?: string;
   actualMinutes: number;
+  remainingMinutes?: number | null;
+  completionPercent?: number;
+  carryOverCount?: number;
+  priority?: string;
+  difficulty?: string;
+  prerequisites?: string;
+  track?: string;
 }
 
 export interface RevisionInput {
@@ -162,7 +183,7 @@ export interface BacklogInput {
 export interface ProjectInput {
   id: string;
   name: string;
-  tasks: { id: string; title: string; completed: boolean; milestoneStage: string }[];
+  tasks: { id: string; title: string; completed: boolean; milestoneStage: string; estimatedMinutes?: number; dueDate?: string | null; priority?: string }[];
 }
 
 export interface PrevMustInput {
@@ -205,6 +226,14 @@ export interface EngineInput {
   days: { date: string; targetMinutes: number; actualMinutes: number }[];
   /** Yesterday's plan realism vote ("easy"|"ok"|"hard"): hard → slimmer MUST, easy → fuller MUST. */
   prevFeedback?: string | null;
+  /** 7-day rolling adaptation snapshot (spec §25/§27). Filled by route. */
+  adaptation?: {
+    plannedMinutes: number;
+    actualMinutes: number;
+    completionRate: number;
+    carryOverMinutes: number;
+    sustainablePerDay: number;
+  };
 }
 
 /* ---------------- helpers ---------------- */

@@ -46,6 +46,9 @@ interface DashboardPayload {
   };
   monthly: { roadmapPercent: number; roadmapByCategory: Record<string, { total: number; done: number }> };
   coreDayComplete: boolean;
+  carryNotice?: { hasCarry: boolean; prevDate: string; count: number; minutes: number; items: { title: string; minutes: number }[]; resolved: boolean };
+  journey?: { completedDays: number; totalDays: number; roadmapPercent: number; aiPercent: number; swePercent: number; gateFirstPassPercent: number; roadmapDeadline: string; gateDeadline: string };
+  schedule?: { status: string; requiredPerDay: number; currentPerDay: number; carryOverMinutes: number; totalRemainingMinutes: number; daysLeft: number };
 }
 
 const PHASE_ORDER = ["DSA", "Full Stack", "ML", "Generative AI", "RAG", "AI Agents", "DevOps", "Projects"];
@@ -177,6 +180,52 @@ export default function DashboardPage() {
           <p className="text-sm font-extrabold uppercase tracking-widest text-indigo-300">Day {milestone}</p>
           <p className="mt-1 text-lg text-gray-200">{milestone} days completed. You have studied {minutesToHM(totalStudied)}. Keep building.</p>
         </div>
+      )}
+
+      {/* 1b — schedule update notice (compact, persistent, no duplicates) */}
+      {data.carryNotice?.hasCarry && (
+        <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 animate-fadeIn" role="status" aria-label="Schedule update">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-amber-300">⚠ Schedule update</p>
+          <p className="mt-1 text-sm text-gray-200">
+            You left {data.carryNotice.count} item{data.carryNotice.count === 1 ? "" : "s"} unfinished on {data.carryNotice.prevDate.slice(5)}.
+            Added to today ({minutesToHM(data.carryNotice.minutes)} carry-over):
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-gray-300">
+            {data.carryNotice.items.map((i, idx) => <li key={idx}>• {i.title} <span className="font-mono text-amber-300/80">· {i.minutes}m</span></li>)}
+          </ul>
+          <Link href="/today" className="mt-3 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white">View today&apos;s plan</Link>
+        </section>
+      )}
+
+      {/* 1c — schedule status + journey (compact, real data only) */}
+      {(data.schedule || data.journey) && (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {data.schedule && (
+            <div className={`rounded-2xl border p-5 ${data.schedule.status === "ON_TRACK" ? "border-emerald-500/30 bg-emerald-500/5" : "border-rose-500/30 bg-rose-500/5"}`}>
+              <p className={`text-[13px] font-extrabold uppercase tracking-widest ${data.schedule.status === "ON_TRACK" ? "text-emerald-300" : "text-rose-300"}`}>
+                {data.schedule.status === "ON_TRACK" ? "On track" : "At risk"}
+              </p>
+              <div className="mt-2 space-y-1 text-[13px] text-gray-300">
+                <p>Roadmap: <b className="text-white">{data.journey?.roadmapPercent ?? 0}% complete</b></p>
+                <p>GATE first-pass: <b className="text-white">{data.journey?.gateFirstPassPercent ?? 0}%</b></p>
+                <p>Carry-over: <b className="text-white">{minutesToHM(data.schedule.carryOverMinutes)}</b></p>
+                <p>Required pace: <b className="text-white">{minutesToHM(data.schedule.requiredPerDay)}/day</b></p>
+                <p>Current pace: <b className="text-white">{data.schedule.currentPerDay > 0 ? `${minutesToHM(data.schedule.currentPerDay)}/day` : "—"}</b></p>
+              </div>
+            </div>
+          )}
+          {data.journey && (
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <p className="text-[13px] font-extrabold uppercase tracking-widest text-gray-400">99-day journey</p>
+              <p className="mt-1 text-lg font-extrabold text-white">{data.journey.completedDays} / {data.journey.totalDays} days</p>
+              <div className="mt-2 space-y-1 text-[13px] text-gray-300">
+                <p>AI Engineering: <b className="text-white">{data.journey.aiPercent}%</b></p>
+                <p>Software Engineering: <b className="text-white">{data.journey.swePercent}%</b></p>
+                <p className="text-gray-500">Target: {data.journey.roadmapDeadline} · GATE: {data.journey.gateDeadline}</p>
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Two timelines: BUILD (skills → Dec 31) + CRACK (GATE → Feb 2027) */}

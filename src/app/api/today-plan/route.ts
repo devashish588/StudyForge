@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   todayStr, addDays, diffDays, toDateStr,
-  PROGRAM_START_STR,
+  PROGRAM_START_STR, PROGRAM_END_STR,
   GATE_SYLLABUS_DEADLINE_DEFAULT, GATE_EXAM_WINDOW_START_DEFAULT, GATE_EXAM_WINDOW_END_DEFAULT,
   isDemoDay,
 } from "@/lib/date";
@@ -13,6 +13,8 @@ import {
   buildTodayPlan, type TodayPlan, type PlanItem, type NotebookData, type Doubt,
   type EngineInput, type PrevMustInput,
 } from "@/lib/today-plan";
+import { buildMissionPayload, type MissionPayload } from "@/lib/mission";
+import { journeyDay, remainingMinutes } from "@/lib/autonomous-planner";
 
 export const dynamic = "force-dynamic";
 
@@ -166,6 +168,10 @@ async function buildEngineInput(
     lastStudied: t.lastStudied,
     pyqsSolved: questions.filter((q) => q.subjectId === t.subjectId && q.topicName === t.name && q.attempted).length,
     openErrors: openErrors.filter((e) => e.subject === t.subject.name && e.topic === t.name).length,
+    remainingMinutes: (t as { remainingMinutes?: number | null }).remainingMinutes ?? null,
+    completionPercent: (t as { completionPercent?: number }).completionPercent ?? 0,
+    carryOverCount: (t as { carryOverCount?: number }).carryOverCount ?? 0,
+    priority: (t as { priority?: string }).priority ?? "CORE",
   }));
 
   const tasks = await prisma.roadmapTask.findMany({
@@ -176,6 +182,13 @@ async function buildEngineInput(
     id: t.id, title: t.title, category: t.category, assignedDate: t.assignedDate,
     status: t.status, estimatedTimeMinutes: t.estimatedTimeMinutes, practiceReq: t.practiceReq,
     weekTitle: t.week?.title, actualMinutes: t.actualMinutes ?? 0,
+    remainingMinutes: (t as { remainingMinutes?: number | null }).remainingMinutes ?? null,
+    completionPercent: (t as { completionPercent?: number }).completionPercent ?? 0,
+    carryOverCount: (t as { carryOverCount?: number }).carryOverCount ?? 0,
+    priority: (t as { priority?: string }).priority ?? "CORE",
+    difficulty: (t as { difficulty?: string }).difficulty ?? "Medium",
+    prerequisites: (t as { prerequisites?: string }).prerequisites ?? "[]",
+    track: (t as { track?: string }).track ?? "",
   }));
 
   const revisionDue = await prisma.revisionItem.findMany({
@@ -192,45 +205,104 @@ async function buildEngineInput(
   });
 
   const projects = await prisma.project.findMany({
-    include: { tasks: { select: { id: true, title: true, completed: true, milestoneStage: true } } },
+    include: { tasks: { select: { id: true, title: true, completed: true, milestoneStage: true, estimatedMinutes: true, dueDate: true, priority: true } } },
     orderBy: { name: "asc" },
   });
 
   // Yesterday's unfinished MUST → tomorrow candidates (never forced back to MUST).
+  // Missed-day recovery (spec §20): scan back up to 7 days; days with zero
+  // actual minutes (and not a rest day) contribute their unfinished items as
+  // recovery carry-over instead of being marked permanently failed.
   const prevDate = addDays(date, -1);
   const prevDay = await prisma.studyDay.findUnique({ where: { date: prevDate } });
   const prevUnfinishedMust: PrevMustInput[] = [];
+  const missedDays: string[] = [];
   let prevFeedback: string | null = null;
-  if (prevDay) {
-    prevFeedback = prevDay.planFeedback;
-    const prevMust = parseArr<PlanItem>(prevDay.mustDoJson);
-    const synced = await syncItems(prevMust, prevDate, prevDay.planGeneratedAt || `${prevDate}T00:00:00`);
-    for (const it of synced.filter((i) => !i.done).slice(0, 3)) {
+  const pushUnfinished = async (dayDate: string, isMissed: boolean) => {
+    const d = await prisma.studyDay.findUnique({ where: { date: dayDate } });
+    if (!d) return;
+    if (isMissed) missedDays.push(dayDate);
+    const prevMust = parseArr<PlanItem>(d.mustDoJson);
+    const prevShould = parseArr<PlanItem>(d.shouldDoJson);
+    const synced = await syncItems([...prevMust, ...prevShould], dayDate, d.planGeneratedAt || `${dayDate}T00:00:00`);
+    for (const it of synced.filter((i) => !i.done)) {
+      if (prevUnfinishedMust.length >= 5) break;
+      if (prevUnfinishedMust.some((p) => p.refId === it.refId && p.refId)) continue; // no duplicates
+      const actual = it.actualMinutes ?? 0;
+      const remaining = Math.max(0, (it.remainingMinutes ?? it.minutes) - 0 || it.minutes - actual);
+      if (remaining <= 0) continue;
       prevUnfinishedMust.push({
-        title: it.title, kind: it.kind, minutes: it.minutes, detail: it.detail,
+        title: it.title, kind: it.kind, minutes: remaining, detail: it.detail,
         refType: it.refType, refId: it.refId, subjectName: it.subjectName, topicName: it.topicName,
       });
+    }
+  };
+  if (prevDay) {
+    prevFeedback = prevDay.planFeedback;
+    await pushUnfinished(prevDate, false);
+    // Missed-day scan: earlier days with no credited minutes and no rest flag.
+    for (let back = 2; back <= 7; back++) {
+      const d = addDays(date, -back);
+      if (d < PROGRAM_START_STR) break;
+      const row = await prisma.studyDay.findUnique({ where: { date: d }, select: { actualMinutes: true, restDay: true } });
+      if (!row || row.restDay || row.actualMinutes > 0) continue;
+      await pushUnfinished(d, true);
+      if (prevUnfinishedMust.length >= 5) break;
     }
   }
 
   // Transparent adaptation: actual/planned ratio per category, last 14 days.
+  // Rolling window only (never one unusual day): needs ≥60 planned minutes
+  // before a factor applies, and post-completion difficulty ratings
+  // (Easy/Normal/Hard) nudge the factor (spec §25/§26). Dependency order is
+  // never overridden by difficulty — this only sizes estimates.
   const since = addDays(date, -14);
   const recentSessions = await prisma.studySession.findMany({
     where: { date: { gte: since, lt: date } },
-    select: { category: true, plannedMinutes: true, actualMinutes: true },
+    select: { category: true, plannedMinutes: true, actualMinutes: true, difficultyRating: true },
   });
-  const calAgg = new Map<string, { a: number; p: number }>();
+  const calAgg = new Map<string, { a: number; p: number; hard: number; easy: number; n: number }>();
   for (const s of recentSessions) {
     if (s.plannedMinutes <= 0 || s.actualMinutes <= 0) continue;
-    const e = calAgg.get(s.category) ?? { a: 0, p: 0 };
+    const e = calAgg.get(s.category) ?? { a: 0, p: 0, hard: 0, easy: 0, n: 0 };
     e.a += s.actualMinutes;
     e.p += s.plannedMinutes;
+    e.n++;
+    if (s.difficultyRating === "Hard") e.hard++;
+    if (s.difficultyRating === "Easy") e.easy++;
     calAgg.set(s.category, e);
   }
   const calibration: Record<string, number> = {};
   for (const [cat, v] of calAgg) {
-    if (v.p >= 60) calibration[cat] = Math.round((v.a / v.p) * 100) / 100;
+    if (v.p >= 60 && v.n >= 3) {
+      const base = v.a / v.p;
+      const nudge = 1 + 0.05 * (v.hard / v.n) - 0.05 * (v.easy / v.n);
+      calibration[cat] = Math.min(1.5, Math.max(0.7, Math.round(base * nudge * 100) / 100));
+    }
   }
+
+  // 7-day adaptation snapshot for weekly rebalancing (spec §27).
+  const weekSince = addDays(date, -7);
+  const weekDays = await prisma.studyDay.findMany({
+    where: { date: { gte: weekSince, lt: date } },
+    select: { date: true, targetMinutes: true, actualMinutes: true, mustDoJson: true, shouldDoJson: true },
+  });
+  let weekPlanned = 0, weekActual = 0, weekDone = 0, weekTotal = 0, weekCarry = 0;
+  for (const d of weekDays) {
+    weekPlanned += d.targetMinutes;
+    weekActual += d.actualMinutes;
+    const items = [...parseArr<PlanItem>(d.mustDoJson), ...parseArr<PlanItem>(d.shouldDoJson)];
+    weekTotal += items.length;
+    weekDone += items.filter((i) => i.done).length;
+    weekCarry += items.filter((i) => !i.done).reduce((a, i) => a + (i.remainingMinutes ?? i.minutes), 0);
+  }
+  const adaptation = {
+    plannedMinutes: weekPlanned,
+    actualMinutes: weekActual,
+    completionRate: weekTotal ? Math.round((weekDone / weekTotal) * 100) : 0,
+    carryOverMinutes: weekCarry,
+    sustainablePerDay: weekDays.length ? Math.round(weekActual / Math.max(1, weekDays.length)) : 0,
+  };
 
   const days = await prisma.studyDay.findMany({
     where: { date: { gte: addDays(date, -32), lte: date } },
@@ -261,6 +333,7 @@ async function buildEngineInput(
       calibration,
       days,
       prevFeedback: opts.prevFeedback ?? prevFeedback,
+      adaptation,
     },
   };
 }
@@ -382,9 +455,15 @@ export async function GET(req: Request) {
       // Tomorrow preview: generate in-memory, never persist.
       const { input, settings } = await buildEngineInput(date, { generatedAt: now });
       const plan = await fillPace(buildTodayPlan(input), date);
+      const syncedPreview = await syncItems(plan.items, date, now);
+      const missionPreview = (() => {
+        try { return buildMissionPayload({ ...plan, items: syncedPreview }, input, 600); }
+        catch { return null; }
+      })();
       return NextResponse.json({
         date, status: "preview" as const,
-        plan: { ...plan, items: await syncItems(plan.items, date, now) },
+        plan: { ...plan, items: syncedPreview },
+        mission: missionPreview,
         settings: { syllabusDeadline: settings.syllabusDeadline },
       });
     }
@@ -413,7 +492,7 @@ export async function GET(req: Request) {
     const synced = await syncItems(plan.items, date, now);
     await savePlan(date, { ...plan, items: synced }, plan.goal, false);
     await prisma.studyDay.update({ where: { date }, data: { notebookContent: day.notebookContent ?? JSON.stringify({ goal: plan.goal, must: [], notes: "", questions: [], learned: "" }) } });
-    return NextResponse.json(await assemble(date, day, synced, "generated", plan));
+    return NextResponse.json(await assemble(date, day, synced, "generated", plan, input));
   } catch (e) {
     console.error("TodayPlan GET error:", e);
     return NextResponse.json({ error: "Failed to load today's plan" }, { status: 500 });
@@ -426,25 +505,94 @@ async function assemble(
   items: PlanItem[],
   status: "locked" | "generated",
   freshPlan?: TodayPlan,
+  engineInput?: EngineInput,
 ) {
   const fresh = await ensureDay(date);
   const notebook = parseNotebook(fresh.notebookContent);
   const doubts: Doubt[] = parseArr<Doubt>(fresh.doubtsJson);
   // Rebuild wrapper (pace/week/horizons) cheaply when serving a stored plan.
   let plan: TodayPlan;
+  let input = engineInput;
   if (freshPlan) {
     plan = { ...freshPlan, items };
   } else {
-    const { input } = await buildEngineInput(date, { generatedAt: fresh.planGeneratedAt || `${date}T00:00:00` });
-    const built = buildTodayPlan(input);
-    plan = await fillPace({ ...built, items, goal: fresh.dailyGoal || built.goal, locked: fresh.planLocked }, date);
+    const built = await buildEngineInput(date, { generatedAt: fresh.planGeneratedAt || `${date}T00:00:00` });
+    input = built.input;
+    const b = buildTodayPlan(input);
+    plan = await fillPace({ ...b, items, goal: fresh.dailyGoal || b.goal, locked: fresh.planLocked }, date);
+  }
+  if (!input) {
+    input = (await buildEngineInput(date, { generatedAt: fresh.planGeneratedAt || `${date}T00:00:00` })).input;
   }
   const must = items.filter((i) => i.tier === "MUST" && !i.done);
   const nextAction = must[0] ?? items.find((i) => !i.done) ?? null;
+
+  // Autonomous mission layer (spec §34): structured, backward-compatible.
+  // Existing `plan`/`items` consumers keep working; new clients read `mission`.
+  const stretchMinutes = (fresh as { stretchMinutes?: number }).stretchMinutes ?? 600;
+  let mission: MissionPayload;
+  try {
+    mission = buildMissionPayload(plan, input, stretchMinutes);
+  } catch (e) {
+    console.error("Mission build error (plan still served):", e);
+    const total = items.filter((i) => !i.done).reduce((a, i) => a + i.minutes, 0);
+    mission = {
+      date,
+      journey: {
+        day: journeyDay(date), total: 99,
+        daysLeft: Math.max(0, diffDays(date, PROGRAM_END_STR)),
+        phase: plan.horizons.phase, targetMinutes: plan.targetMinutes,
+        stretchMinutes, gateDeadline: input.settings.syllabusDeadline,
+      },
+      carryOver: items.filter((i) => i.movedFrom && !i.done),
+      easyStart: [], hardDeepWork: [], easyApply: items.filter((i) => !i.done), recall: [],
+      totalPlannedMinutes: total, remainingCapacity: Math.max(0, plan.targetMinutes - total),
+      scheduleRisk: {
+        status: "ON_TRACK", totalRemainingMinutes: total, availableMinutes: plan.targetMinutes,
+        requiredPerDay: 0, sustainablePerDay: plan.targetMinutes, gapPerDay: 0,
+        message: "On track.", recovery: [],
+      },
+      rebalance: { gateShare: 0.375, aiShare: 0.375, sweShare: 0.25, reason: "Default allocation." },
+      deferred: [],
+    };
+  }
+
+  // Persist journey + carry-over + risk snapshot (best-effort, never blocks).
+  const carryMins = mission.carryOver.reduce((a, i) => a + i.minutes, 0);
+  try {
+    await prisma.studyDay.update({
+      where: { date },
+      data: {
+        journeyDay: mission.journey.day,
+        stretchMinutes,
+        carryOverJson: JSON.stringify(mission.carryOver.map((i) => ({ id: i.id, title: i.title, minutes: i.minutes, movedFrom: i.movedFrom ?? null, refId: i.refId ?? null, refType: i.refType ?? null }))),
+        scheduleRiskJson: JSON.stringify(mission.scheduleRisk),
+        rebalanceJson: JSON.stringify(mission.rebalance),
+        adaptationJson: JSON.stringify(input.adaptation ?? {}),
+        missedRecovery: (fresh as { missedRecovery?: boolean }).missedRecovery ?? false,
+      },
+    });
+  } catch { /* additive columns may lag in exotic envs — plan still served */ }
+  void carryMins;
+
   return {
     date,
     status,
     plan,
+    // Spec §34 structured planning data (new clients) — mirrors mission blocks.
+    mission,
+    journeyDay: mission.journey.day,
+    targetMinutes: plan.targetMinutes,
+    stretchMinutes,
+    carryOver: mission.carryOver,
+    easyStart: mission.easyStart,
+    hardDeepWork: mission.hardDeepWork,
+    easyApply: mission.easyApply,
+    recall: mission.recall,
+    totalPlannedMinutes: mission.totalPlannedMinutes,
+    remainingCapacity: mission.remainingCapacity,
+    scheduleRisk: mission.scheduleRisk,
+    reasons: plan.logic,
     notebook,
     doubts,
     yesterday: await computeYesterday(date),
@@ -479,7 +627,7 @@ export async function POST(req: Request) {
     const plan = await fillPace(buildTodayPlan(input), date);
     const synced = await syncItems(plan.items, date, now);
     await savePlan(date, { ...plan, items: synced }, plan.goal, false);
-    return NextResponse.json(await assemble(date, day, synced, "generated", { ...plan, items: synced }));
+    return NextResponse.json(await assemble(date, day, synced, "generated", { ...plan, items: synced }, input));
   } catch (e) {
     console.error("TodayPlan POST error:", e);
     return NextResponse.json({ error: "Failed to regenerate plan" }, { status: 500 });
@@ -510,6 +658,124 @@ async function persistBuckets(date: string, buckets: Record<"mustDoJson" | "shou
       couldDoJson: JSON.stringify(buckets.couldDoJson),
     },
   });
+}
+
+/** Mirror atomic progress onto the source-of-truth row (no duplicates). */
+async function mirrorAtomicProgress(item: PlanItem, actual: number, remaining: number, pct: number, sourceDate: string) {
+  try {
+    if (item.refType === "roadmapTask" && item.refId) {
+      const row = await prisma.roadmapTask.findUnique({ where: { id: item.refId } });
+      if (row) {
+        const prevActual = (row as { actualMinutes?: number }).actualMinutes ?? 0;
+        await prisma.roadmapTask.update({
+          where: { id: item.refId },
+          data: {
+            actualMinutes: prevActual + actual,
+            remainingMinutes: remaining,
+            completionPercent: pct,
+            carryOverCount: remaining > 0 ? ((row as { carryOverCount?: number }).carryOverCount ?? 0) + 1 : ((row as { carryOverCount?: number }).carryOverCount ?? 0),
+            sourceDate: remaining > 0 ? sourceDate : ((row as { sourceDate?: string | null }).sourceDate ?? null),
+            status: remaining === 0 ? "COMPLETED" : row.status === "TODO" ? "IN_PROGRESS" : row.status,
+            ...(remaining === 0 ? { completionDate: sourceDate } : {}),
+          },
+        });
+      }
+    } else if (item.refType === "gateTopic" && item.refId) {
+      const row = await prisma.gateTopic.findUnique({ where: { id: item.refId } });
+      if (row) {
+        await prisma.gateTopic.update({
+          where: { id: item.refId },
+          data: {
+            remainingMinutes: remaining,
+            completionPercent: pct,
+            carryOverCount: remaining > 0 ? ((row as { carryOverCount?: number }).carryOverCount ?? 0) + 1 : ((row as { carryOverCount?: number }).carryOverCount ?? 0),
+            sourceDate: remaining > 0 ? sourceDate : ((row as { sourceDate?: string | null }).sourceDate ?? null),
+            ...(remaining === 0 ? { completed: true, completedAt: sourceDate } : {}),
+          },
+        });
+      }
+    } else if (item.refType === "projectTask" && item.refId) {
+      const row = await prisma.projectTask.findUnique({ where: { id: item.refId } });
+      if (row) {
+        await prisma.projectTask.update({
+          where: { id: item.refId },
+          data: {
+            remainingMinutes: remaining,
+            completionPercent: pct,
+            carryOverCount: remaining > 0 ? ((row as { carryOverCount?: number }).carryOverCount ?? 0) + 1 : ((row as { carryOverCount?: number }).carryOverCount ?? 0),
+            ...(remaining === 0 ? { completed: true } : {}),
+          },
+        });
+      }
+    }
+  } catch (e) {
+    console.error("mirrorAtomicProgress error:", e);
+  }
+}
+
+/** Carry one item into tomorrow's SHOULD pool (dedupe by refId, keep original id). */
+async function carryItemToTomorrow(date: string, item: PlanItem) {
+  const tomorrow = addDays(date, 1);
+  const tday = await ensureDay(tomorrow);
+  const tShould = parseArr<PlanItem>(tday.shouldDoJson);
+  if (item.refId && tShould.some((i) => i.refId === item.refId)) return;
+  if (tShould.some((i) => i.id === item.id)) return;
+  const carryCount = (item.carryOverCount ?? 0) + 1;
+  tShould.push({
+    ...item,
+    id: `${tomorrow}:carried:${item.refType ?? "custom"}:${item.refId ?? item.id.split(":").slice(-1)[0]}`,
+    tier: "SHOULD",
+    done: false,
+    actualMinutes: 0,
+    carryOverCount: carryCount,
+    sourceDate: date,
+    movedFrom: date,
+    why: `${item.title} — unfinished ${date}, carried with ${item.minutes}m remaining (carry #${carryCount}).`,
+  });
+  await prisma.studyDay.update({ where: { date: tomorrow }, data: { shouldDoJson: JSON.stringify(tShould) } });
+}
+
+/** End-of-day close (spec §36): returns summary, persists carry-over. */
+async function closeDay(date: string, buckets: Record<"mustDoJson" | "shouldDoJson" | "couldDoJson", PlanItem[]>) {
+  const all = [...buckets.mustDoJson, ...buckets.shouldDoJson, ...buckets.couldDoJson];
+  let completed = 0, partial = 0, missed = 0, carryMinutes = 0;
+  const carried: string[] = [];
+  for (const it of all) {
+    const actual = it.actualMinutes ?? (it.done ? it.minutes : 0);
+    const remaining = it.remainingMinutes ?? Math.max(0, it.minutes - actual);
+    if (it.done || remaining === 0) {
+      completed++;
+      if (!it.done) {
+        // Mark fully-worked items done for history consistency.
+        it.done = true;
+      }
+      await mirrorAtomicProgress(it, actual, 0, 100, date);
+    } else if (actual > 0) {
+      partial++;
+      carryMinutes += remaining;
+      carried.push(it.title);
+      await mirrorAtomicProgress(it, actual, remaining, Math.round((actual / it.minutes) * 100), date);
+      await carryItemToTomorrow(date, { ...it, minutes: remaining });
+    } else {
+      missed++;
+      carryMinutes += it.minutes;
+      carried.push(it.title);
+      // Missed items keep their full estimate as remaining (no fake progress).
+      await mirrorAtomicProgress(it, 0, it.minutes, 0, date);
+      if (it.tier !== "COULD") await carryItemToTomorrow(date, it);
+    }
+  }
+  await persistBuckets(date, buckets);
+  const fresh = await ensureDay(date);
+  const summary = {
+    actualMinutes: fresh.actualMinutes,
+    targetMinutes: fresh.targetMinutes,
+    completed, partial, missed,
+    carryOverMinutes: carryMinutes,
+    carried,
+    note: carried.length ? "Carry-over protected automatically for tomorrow." : "Nothing to carry — clean close.",
+  };
+  return summary;
 }
 
 export async function PATCH(req: Request) {
@@ -660,9 +926,71 @@ export async function PATCH(req: Request) {
         await prisma.studyDay.update({ where: { date }, data: { planFeedback: f } });
         break;
       }
+      case "rate-difficulty": {
+        // Post-completion calibration (spec §26): Easy | Normal | Hard.
+        // Stored on the linked timer session(s); feeds future estimates via
+        // the rolling adaptation window. Never overrides dependency order.
+        const rating = String(body.rating ?? "");
+        if (!["Easy", "Normal", "Hard"].includes(rating)) return NextResponse.json({ error: "Invalid rating" }, { status: 400 });
+        const found = findItem(day, body.itemId);
+        const titleMatch = found
+          ? (buckets[found.bucket][found.idx].topicName
+            ? `${buckets[found.bucket][found.idx].subjectName ?? ""} — ${buckets[found.bucket][found.idx].topicName}`
+            : buckets[found.bucket][found.idx].title)
+          : null;
+        if (found) {
+          buckets[found.bucket][found.idx] = { ...buckets[found.bucket][found.idx], difficulty: rating };
+          await persistBuckets(date, buckets);
+        }
+        const sessions = await prisma.studySession.findMany({
+          where: { date },
+          select: { id: true, title: true, notes: true },
+        });
+        const linked = sessions.filter((s) =>
+          (body.itemId && s.notes === `plan:${date}:${body.itemId}`) ||
+          (titleMatch && s.title === titleMatch)
+        );
+        for (const s of linked.slice(0, 3)) {
+          await prisma.studySession.update({ where: { id: s.id }, data: { difficultyRating: rating } });
+        }
+        break;
+      }
       case "lock": {
         await prisma.studyDay.update({ where: { date }, data: { planLocked: Boolean(body.locked) } });
         break;
+      }
+      case "log-progress": {
+        // Partial completion (spec §10/§19): record actual minutes on the plan
+        // item, compute remaining, and mirror atomic state onto the source row
+        // (RoadmapTask / GateTopic / ProjectTask). Remaining > 0 stays on the
+        // item for automatic carry-over; it is never silently deleted.
+        const found = findItem(day, body.itemId);
+        if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
+        const cur = buckets[found.bucket][found.idx];
+        const actual = Math.max(0, Math.min(cur.minutes, Number(body.actualMinutes) || 0));
+        const remaining = Math.max(0, cur.minutes - actual);
+        const pct = cur.minutes > 0 ? Math.round((actual / cur.minutes) * 100) : 0;
+        const stopped = body.stopped === true || remaining > 0;
+        buckets[found.bucket][found.idx] = {
+          ...cur,
+          actualMinutes: actual,
+          remainingMinutes: remaining,
+          completionPercent: pct,
+          done: remaining === 0 ? true : Boolean(body.done),
+        };
+        await persistBuckets(date, buckets);
+        await mirrorAtomicProgress(cur, actual, remaining, pct, date);
+        if (stopped && remaining > 0 && body.carry === true) {
+          await carryItemToTomorrow(date, { ...cur, minutes: remaining, actualMinutes: 0, remainingMinutes: remaining, completionPercent: pct, done: false });
+        }
+        break;
+      }
+      case "close-day": {
+        // End-of-day process (spec §36): classify every item, create
+        // carry-over candidates with remaining minutes, update source rows,
+        // and return a short summary. Tomorrow is pre-planned on next GET.
+        const summary = await closeDay(date, buckets);
+        return NextResponse.json({ ok: true, date, summary });
       }
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
