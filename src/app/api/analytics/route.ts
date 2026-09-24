@@ -33,7 +33,7 @@ export async function GET(req: Request) {
       const d = addDays(end, -i);
       const found = days.find((x) => x.date === d);
       const usable = found && isActiveDay(found as { date: string; notes?: string | null });
-      daily.push({ date: d, minutes: usable ? found!.actualMinutes : 0, target: found?.targetMinutes ?? 480 });
+      daily.push({ date: d, minutes: usable ? found!.actualMinutes : 0, target: found?.targetMinutes ?? 360 });
     }
 
     // Weekly bars (last 8 weeks, Mon-anchored approx by 7-day chunks)
@@ -42,9 +42,9 @@ export async function GET(req: Request) {
       const wEnd = addDays(end, -w * 7);
       const wStart = addDays(wEnd, -6);
       const mins = activeDays.filter((d) => d.date >= wStart && d.date <= wEnd).reduce((a, d) => a + d.actualMinutes, 0);
-      const tgt = activeDays.filter((d) => d.date >= wStart && d.date <= wEnd).reduce((a, d) => a + (d.targetMinutes || 480), 0)
-        || 7 * 480;
-      weekly.push({ label: wStart.slice(5), minutes: mins, target: Math.min(tgt, 7 * 600) });
+      const tgt = activeDays.filter((d) => d.date >= wStart && d.date <= wEnd).reduce((a, d) => a + (d.targetMinutes || 360), 0)
+        || 7 * 360;
+      weekly.push({ label: wStart.slice(5), minutes: mins, target: Math.min(tgt, 7 * 480) });
     }
 
     // GATE analytics
@@ -145,11 +145,11 @@ export async function GET(req: Request) {
     // Plan accuracy (descriptive): avg min(actual,planned)/planned over last 14 active days.
     const acc14 = activeDays.filter((d) => d.date > addDays(end, -14) && d.date <= end && (d.targetMinutes || 0) > 0);
     const planAccuracy = acc14.length
-      ? Math.round((acc14.reduce((a, d) => a + Math.min(d.actualMinutes, d.targetMinutes || 480) / (d.targetMinutes || 480), 0) / acc14.length) * 100)
+      ? Math.round((acc14.reduce((a, d) => a + Math.min(d.actualMinutes, d.targetMinutes || 360) / (d.targetMinutes || 360), 0) / acc14.length) * 100)
       : 0;
     const scorecard = {
       focusedMinutes: sum(last7),
-      targetMinutes: last7.reduce((a, d) => a + (d.targetMinutes || 480), 0) || 7 * 480,
+      targetMinutes: last7.reduce((a, d) => a + (d.targetMinutes || 360), 0) || 7 * 360,
       gatePyqs: gateWeek,
       accuracy,
       roadmapDone: done,

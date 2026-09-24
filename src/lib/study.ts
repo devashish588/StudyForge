@@ -5,8 +5,8 @@
 import { addDays, todayStr } from "./date";
 
 export const CORE_DAY_MIN_MINUTES = 180; // 3h focused default
-export const DAILY_TARGET_MINUTES_DEFAULT = 480; // 8h
-export const DAILY_STRETCH_MINUTES_DEFAULT = 600; // 10h
+export const DAILY_TARGET_MINUTES_DEFAULT = 360; // 6h normal floor
+export const DAILY_STRETCH_MINUTES_DEFAULT = 480; // 8h stretch
 
 export type FocusPriority = "Balanced" | "GATE" | "Roadmap" | "Project" | "Revision";
 

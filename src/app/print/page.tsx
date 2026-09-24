@@ -50,7 +50,7 @@ export default function PrintPage() {
 
         {section === "Daily" && (
           <div className="space-y-3">
-            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Today — {todayStr()} (target {minutesToHM(day?.targetMinutes ?? 480)})</h2>
+            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Today — {todayStr()} (target {minutesToHM(day?.targetMinutes ?? 360)})</h2>
             {(day?.sessions || []).map((s: any, i: number) => (
               <CheckRow key={s.id || i} title={`${s.blockLabel || `Block ${i + 1}`}: ${s.title}`} sub={`${s.category} • planned ${s.plannedMinutes}m • actual ${s.actualMinutes}m`} />
             ))}

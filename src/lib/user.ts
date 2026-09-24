@@ -19,15 +19,15 @@ export async function ensureUser() {
       id: "user_devashish",
       name: "Devashish",
       email: "devashish@studyforge.local",
-      dailyTargetHours: 8.0,
+      dailyTargetHours: 6.0,
       currentStreak: 0,
       longestStreak: 0,
       settings: {
         create: {
           preferredSittings: JSON.stringify([]),
           schedulingMode: "Flexible",
-          dailyTargetMinutes: 480,
-          stretchTargetMinutes: 600,
+          dailyTargetMinutes: 360,
+          stretchTargetMinutes: 480,
           gateAllocation: 0.375,
           roadmapAllocation: 0.375,
           revisionAllocation: 0.125,

@@ -226,6 +226,8 @@ export interface EngineInput {
   days: { date: string; targetMinutes: number; actualMinutes: number }[];
   /** Yesterday's plan realism vote ("easy"|"ok"|"hard"): hard → slimmer MUST, easy → fuller MUST. */
   prevFeedback?: string | null;
+  /** Unsolved practice-bank remainder (Core 100) — counted in feasibility. */
+  practiceRemainingMinutes?: number;
   /** 7-day rolling adaptation snapshot (spec §25/§27). Filled by route. */
   adaptation?: {
     plannedMinutes: number;

@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     });
     if (!day) {
       day = await prisma.studyDay.create({
-        data: { date, plannedHours: 8.0, targetMinutes: 480, availableMinutes: 480 },
+        data: { date, plannedHours: 6.0, targetMinutes: 360, availableMinutes: 360, stretchMinutes: 480 },
         include: { sessions: true },
       });
     }
@@ -41,7 +41,7 @@ export async function PATCH(req: Request) {
     let day = await prisma.studyDay.findUnique({ where: { date } });
     if (!day) {
       day = await prisma.studyDay.create({
-        data: { date, plannedHours: 8.0, targetMinutes: 480, availableMinutes: 480 },
+        data: { date, plannedHours: 6.0, targetMinutes: 360, availableMinutes: 360, stretchMinutes: 480 },
       });
     }
 

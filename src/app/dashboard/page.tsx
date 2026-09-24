@@ -105,7 +105,7 @@ export default function DashboardPage() {
   }
 
   const { studyDay, window, streak, plan } = data;
-  const target = studyDay.targetMinutes || 480;
+  const target = studyDay.targetMinutes || 360;
   const actual = studyDay.actualMinutes;
   const dayPct = Math.round((actual / Math.max(1, target)) * 100);
   const maxLast7 = Math.max(1, ...data.last7.map((d) => d.minutes));

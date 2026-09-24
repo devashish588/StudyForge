@@ -69,8 +69,8 @@ export async function PATCH(req: Request) {
         create: {
           userId: user.id,
           schedulingMode: schedulingMode || "Flexible",
-          dailyTargetMinutes: Number(dailyTargetMinutes) || 480,
-          stretchTargetMinutes: Number(stretchTargetMinutes) || 600,
+          dailyTargetMinutes: Number(dailyTargetMinutes) || 360,
+          stretchTargetMinutes: Number(stretchTargetMinutes) || 480,
         },
         update: {
           ...(notifyReminders !== undefined && { notifyReminders }),

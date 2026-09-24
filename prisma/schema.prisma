@@ -11,7 +11,7 @@ model User {
   id               String   @id @default("user_devashish")
   name             String   @default("Devashish")
   email            String   @default("devashish@studyforge.local")
-  dailyTargetHours Float    @default(8.0)
+  dailyTargetHours Float    @default(6.0)
   currentStreak    Int      @default(0)
   longestStreak    Int      @default(0)
   createdAt        DateTime @default(now())
@@ -26,8 +26,8 @@ model UserSettings {
   user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   preferredSittings  String  @default("[]")
   schedulingMode     String  @default("Flexible")
-  dailyTargetMinutes Int     @default(480)
-  stretchTargetMinutes Int   @default(600)
+  dailyTargetMinutes Int     @default(360)
+  stretchTargetMinutes Int   @default(480)
   gateAllocation     Float   @default(0.375)
   roadmapAllocation  Float   @default(0.375)
   revisionAllocation Float   @default(0.125)
@@ -86,7 +86,7 @@ model StudyDay {
 
   // Autonomous orchestrator (additive, nullable-safe).
   journeyDay        Int?
-  stretchMinutes    Int      @default(600)
+  stretchMinutes    Int      @default(480)
   carryOverJson     String   @default("[]")
   scheduleRiskJson  String   @default("{}")
   rebalanceJson     String   @default("{}")

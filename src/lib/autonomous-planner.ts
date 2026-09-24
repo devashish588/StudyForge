@@ -74,6 +74,10 @@ export interface ScheduleRisk {
   gapPerDay: number;
   message: string;
   recovery: string[];
+  /** OPTIONAL-tier remainder: spare-capacity only, never in the required pace. */
+  optionalMinutes?: number;
+  /** Horizon the math was computed against (Jan-15 feasibility window). */
+  horizonDate?: string;
 }
 
 export interface RebalanceSignal {
@@ -179,14 +183,16 @@ export function remainingMinutes(estimated: number, actual: number, storedRemain
 }
 
 // ---- mission builder (spec §7, §8, §13) ----
+// Jan-15 curriculum rhythm (6h day): EASY START 45–60m, HARD DEEP 2–2.5h,
+// EASY APPLY 1.5–2h, RECALL 45–60m. Extra capacity pulls the next priority.
 
-const EASY_START_MIN = 90;
-const EASY_START_MAX = 120;
-const HARD_MIN = 150;
-const HARD_MAX = 240;
+const EASY_START_MIN = 45;
+const EASY_START_MAX = 60;
+const HARD_MIN = 120;
+const HARD_MAX = 150;
 const APPLY_MIN = 90;
-const APPLY_MAX = 180;
-const RECALL_MIN = 30;
+const APPLY_MAX = 120;
+const RECALL_MIN = 45;
 const RECALL_MAX = 60;
 
 function toPlanItem(c: WorkCandidate, block: CognitiveBlock, why: string, date: string): PlanItem {
@@ -342,6 +348,9 @@ export function computeScheduleRisk(args: {
   daysLeft: number;
   sustainablePerDay: number;
   capacityPerDay: number;
+  /** OPTIONAL-tier remainder (informational — excluded from required pace). */
+  optionalMinutes?: number;
+  horizonDate?: string;
 }): ScheduleRisk {
   const total = Object.values(args.remainingByTrack).reduce((a, b) => a + b, 0);
   const denom = Math.max(1, args.daysLeft);
@@ -358,7 +367,7 @@ export function computeScheduleRisk(args: {
       ? []
       : [
           "Protect CORE work first; defer OPTIONAL until capacity opens.",
-          "Raise daily target toward stretch where realistic, or compress mastered material.",
+          "Hold GOOD pace (~7h) if keeping a weekly rest day; floor pace (6h) fits only with ≤10 rest days total.",
           "Reallocate track time toward the behind track (see rebalance signal).",
           "Prioritize high-value topics; move low-priority extensions past the deadline.",
         ];
@@ -366,6 +375,8 @@ export function computeScheduleRisk(args: {
     status, totalRemainingMinutes: Math.round(total), availableMinutes: Math.round(denom * args.capacityPerDay),
     requiredPerDay: Math.round(required), sustainablePerDay: Math.round(args.sustainablePerDay),
     gapPerDay: Math.round(gap), message, recovery,
+    optionalMinutes: Math.round(args.optionalMinutes ?? 0),
+    horizonDate: args.horizonDate,
   };
 }
 

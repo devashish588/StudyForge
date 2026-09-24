@@ -310,7 +310,14 @@ async function buildEngineInput(
     orderBy: { date: "asc" },
   });
 
-  const availableMinutes = opts.availableMinutes ?? day.availableMinutes ?? day.targetMinutes ?? 480;
+  // Unsolved practice-bank remainder (Core 100) for honest feasibility math.
+  const unsolvedPractice = await prisma.practiceProblem.findMany({
+    where: { solved: false },
+    select: { timeMinutes: true },
+  });
+  const practiceRemainingMinutes = unsolvedPractice.reduce((a, q) => a + (q.timeMinutes || 15), 0);
+
+  const availableMinutes = opts.availableMinutes ?? day.availableMinutes ?? day.targetMinutes ?? 360;
   const priorityMode = (opts.priorityMode ?? day.focusPriority ?? "Balanced") as FocusPriority;
 
   return {
@@ -334,6 +341,7 @@ async function buildEngineInput(
       days,
       prevFeedback: opts.prevFeedback ?? prevFeedback,
       adaptation,
+      practiceRemainingMinutes,
     },
   };
 }
@@ -457,7 +465,7 @@ export async function GET(req: Request) {
       const plan = await fillPace(buildTodayPlan(input), date);
       const syncedPreview = await syncItems(plan.items, date, now);
       const missionPreview = (() => {
-        try { return buildMissionPayload({ ...plan, items: syncedPreview }, input, 600); }
+        try { return buildMissionPayload({ ...plan, items: syncedPreview }, input, 480); }
         catch { return null; }
       })();
       return NextResponse.json({
@@ -529,7 +537,7 @@ async function assemble(
 
   // Autonomous mission layer (spec §34): structured, backward-compatible.
   // Existing `plan`/`items` consumers keep working; new clients read `mission`.
-  const stretchMinutes = (fresh as { stretchMinutes?: number }).stretchMinutes ?? 600;
+  const stretchMinutes = (fresh as { stretchMinutes?: number }).stretchMinutes ?? 480;
   let mission: MissionPayload;
   try {
     mission = buildMissionPayload(plan, input, stretchMinutes);

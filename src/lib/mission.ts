@@ -126,13 +126,15 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   });
 
   const daysToGate = Math.max(1, diffDays(date, input.settings.syllabusDeadline) + (date <= input.settings.syllabusDeadline ? 1 : 0));
+  // "Behind" signals require real history — Day-1 zero baselines must not cry wolf.
+  const hasHistory = input.days.length >= 7 || (plan.pace.currentTopicsPerDay ?? 0) > 0;
   const ctx: PlannerContext = {
     date,
     capacity,
     stretch: stretchMinutes,
     daysToRoadmapEnd: Math.max(1, diffDays(date, PROGRAM_END_STR) + 1),
     daysToGateDeadline: daysToGate,
-    gateBehind: (plan.pace.driftTopicsPerDay ?? 0) < 0,
+    gateBehind: hasHistory && (plan.pace.driftTopicsPerDay ?? 0) < 0,
     aiBehind: false,
     sweBehind: false,
     projectDueSoon: false,
@@ -159,21 +161,45 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   const recall = asItems(mission.recall, "RECALL");
 
   // Schedule risk from real remaining workload vs remaining capacity.
+  // Jan-15 feasibility: CORE + IMPORTANT count toward required pace; OPTIONAL
+  // is spare-capacity-only by design (spec §29) and reported separately.
+  // Project milestones carry estimates, so they count too — nothing hidden.
   const remainingByTrack: Record<Track, number> = { GATE: 0, AI_ENGINEERING: 0, SOFTWARE_ENGINEERING: 0 };
+  let optionalMinutes = 0;
   for (const t of input.gateTopics.filter((t) => !t.completed)) {
-    remainingByTrack.GATE += remainingMinutes(t.estimatedMinutes, 0, t.remainingMinutes);
+    const mins = remainingMinutes(t.estimatedMinutes, 0, t.remainingMinutes);
+    if (t.priority === "OPTIONAL") optionalMinutes += mins;
+    else remainingByTrack.GATE += mins;
   }
   for (const t of input.roadmapTasks.filter((t) => t.status !== "COMPLETED" && t.status !== "PRACTICE")) {
     const track = classifyTrack("ROADMAP", `${t.category} ${t.title}`);
-    remainingByTrack[track] += remainingMinutes(t.estimatedTimeMinutes, t.actualMinutes, t.remainingMinutes);
+    const mins = remainingMinutes(t.estimatedTimeMinutes, t.actualMinutes, t.remainingMinutes);
+    if (t.priority === "OPTIONAL") optionalMinutes += mins;
+    else remainingByTrack[track] += mins;
   }
+  for (const p of input.projects) {
+    for (const t of p.tasks.filter((t) => !t.completed)) {
+      const mins = Math.max(0, (t.estimatedMinutes ?? 60));
+      const track = /RAG|Agent|Chatbot|ML Prediction|Containerized/i.test(`${p.name} ${t.title}`) ? "AI_ENGINEERING" : "SOFTWARE_ENGINEERING";
+      if ((t.priority ?? "IMPORTANT") === "OPTIONAL") optionalMinutes += mins;
+      else remainingByTrack[track] += mins;
+    }
+  }
+  // Practice bank (Core 100): unsolved remainder counts toward feasibility —
+  // excluding it would understate required pace by ~78h.
+  remainingByTrack.SOFTWARE_ENGINEERING += Math.max(0, input.practiceRemainingMinutes ?? 0);
   const recentActual = input.days.slice(-7).filter((d) => d.actualMinutes > 0).map((d) => d.actualMinutes);
   const sustainable = recentActual.length ? Math.round(recentActual.reduce((a, b) => a + b, 0) / recentActual.length) : capacity;
+  // Overall horizon = Jan-15 syllabus deadline (114-day window); the Dec-31
+  // roadmap milestone stays visible via pace/phase UI.
+  const daysToHorizon = Math.max(1, diffDays(date, input.settings.syllabusDeadline) + (date <= input.settings.syllabusDeadline ? 1 : 0));
   const scheduleRisk = computeScheduleRisk({
     remainingByTrack,
-    daysLeft: ctx.daysToRoadmapEnd,
+    daysLeft: daysToHorizon,
     sustainablePerDay: sustainable,
     capacityPerDay: capacity,
+    optionalMinutes,
+    horizonDate: input.settings.syllabusDeadline,
   });
 
   const aiRemaining = remainingByTrack.AI_ENGINEERING;

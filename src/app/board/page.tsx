@@ -59,7 +59,7 @@ export default function BoardPage() {
   }
 
   const day = data.studyDay ?? {};
-  const target = day.targetMinutes || 480;
+  const target = day.targetMinutes || 360;
   const actual = day.actualMinutes || 0;
   const pct = Math.round((actual / Math.max(1, target)) * 100);
   const today = formatDisplay(day.date ?? "");

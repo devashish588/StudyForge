@@ -5,12 +5,12 @@ import { X, Sparkles } from "lucide-react";
 import type { FocusPriority } from "@/lib/study";
 
 export default function CheckInModal({
-  isOpen, onClose, onDone, initialAvailable = 480, initialPriority = "Balanced",
+  isOpen, onClose, onDone, initialAvailable = 360, initialPriority = "Balanced",
 }: {
   isOpen: boolean; onClose: () => void; onDone: () => void;
   initialAvailable?: number; initialPriority?: FocusPriority;
 }) {
-  const [hours, setHours] = useState<number>(initialAvailable >= 600 ? 10 : initialAvailable >= 540 ? 9 : 8);
+  const [hours, setHours] = useState<number>(initialAvailable >= 480 ? 8 : initialAvailable >= 420 ? 7 : 6);
   const [custom, setCustom] = useState<string>("");
   const [priority, setPriority] = useState<FocusPriority>(initialPriority);
   const [mustFinish, setMustFinish] = useState<string>("");
@@ -62,7 +62,7 @@ export default function CheckInModal({
 
         <p className="text-xs font-bold text-gray-300 mb-2">TIME AVAILABLE TODAY</p>
         <div className="grid grid-cols-3 gap-2 mb-3">
-          {[8, 9, 10].map((h) => (
+          {[6, 7, 8].map((h) => (
             <button
               key={h}
               onClick={() => { setHours(h); setCustom(""); }}

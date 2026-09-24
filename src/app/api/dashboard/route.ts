@@ -28,9 +28,9 @@ export async function GET(req: Request) {
       studyDay = await prisma.studyDay.create({
         data: {
           date: today,
-          plannedHours: 8.0,
-          targetMinutes: 480,
-          availableMinutes: 480,
+          plannedHours: 6.0,
+          targetMinutes: 360,
+          availableMinutes: 360,
           actualMinutes: 0,
           focusPriority: "Balanced",
         },
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
 
     // 2. User info + settings (bootstrap row is guaranteed to exist)
     const user = await ensureUser();
-    const targetMinutes = studyDay.targetMinutes || user?.settings?.dailyTargetMinutes || 480;
+    const targetMinutes = studyDay.targetMinutes || user?.settings?.dailyTargetMinutes || 360;
 
     // 3. Roadmap tasks due today (assignedDate <= today, not completed) + today's explicit
     const explicitToday = await prisma.roadmapTask.findMany({
@@ -159,9 +159,9 @@ export async function GET(req: Request) {
     try {
       const stored = JSON.parse((studyDay as { planJson?: string }).planJson || "{}");
       if (stored && stored.gateMinutes) plan = stored;
-      else plan = generatePlan({ availableMinutes: studyDay.availableMinutes || 480, priority: (studyDay.focusPriority as "Balanced" | "GATE" | "Roadmap" | "Project" | "Revision") ?? "Balanced", revisionDueCount: revisionQueue.length });
+      else plan = generatePlan({ availableMinutes: studyDay.availableMinutes || 360, priority: (studyDay.focusPriority as "Balanced" | "GATE" | "Roadmap" | "Project" | "Revision") ?? "Balanced", revisionDueCount: revisionQueue.length });
     } catch {
-      plan = generatePlan({ availableMinutes: studyDay.availableMinutes || 480, priority: "Balanced", revisionDueCount: revisionQueue.length });
+      plan = generatePlan({ availableMinutes: studyDay.availableMinutes || 360, priority: "Balanced", revisionDueCount: revisionQueue.length });
     }
 
     // 12. Next-session candidate (priority engine input for client)
@@ -249,27 +249,40 @@ export async function GET(req: Request) {
     };
 
     const remainingRoadmap = await prisma.roadmapTask.findMany({
-      where: { status: { notIn: ["COMPLETED", "PRACTICE"] } },
+      where: { status: { notIn: ["COMPLETED", "PRACTICE"] }, priority: { not: "OPTIONAL" } },
       select: { estimatedTimeMinutes: true, actualMinutes: true },
     });
     const remainingGate = await prisma.gateTopic.findMany({
-      where: { completed: false },
+      where: { completed: false, priority: { not: "OPTIONAL" } },
       select: { estimatedMinutes: true },
     });
+    const remainingProjects = await prisma.projectTask.findMany({
+      where: { completed: false, priority: { not: "OPTIONAL" } },
+      select: { estimatedMinutes: true },
+    });
+    const remainingPractice = await prisma.practiceProblem.findMany({
+      where: { solved: false },
+      select: { timeMinutes: true },
+    });
     const totalRemaining = remainingRoadmap.reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0)
-      + remainingGate.reduce((a, t) => a + (t.estimatedMinutes ?? 90), 0);
-    const daysLeftNum = Math.max(1, diffDays(today, PROGRAM_END_STR) + 1);
+      + remainingGate.reduce((a, t) => a + (t.estimatedMinutes ?? 90), 0)
+      + remainingProjects.reduce((a, t) => a + (t.estimatedMinutes ?? 60), 0)
+      + remainingPractice.reduce((a, q) => a + (q.timeMinutes || 15), 0);
+    // Jan-15 feasibility horizon (114-day window); OPTIONAL excluded by design.
+    const daysLeftNum = Math.max(1, diffDays(today, syllabusDeadline) + (today <= syllabusDeadline ? 1 : 0));
     const requiredPerDay = Math.round(totalRemaining / daysLeftNum);
     const last7Actual = last7.filter((d) => d.minutes > 0).map((d) => d.minutes);
     const currentPerDay = last7Actual.length ? Math.round(last7Actual.reduce((a, b) => a + b, 0) / last7Actual.length) : 0;
     const risk = parseJson<{ status?: string }>(studyDay.scheduleRiskJson ?? "{}", {});
+    const computed = requiredPerDay <= 360 ? "ON_TRACK" : requiredPerDay <= 420 ? "AT_RISK" : "OVERLOAD";
     const schedule = {
-      status: risk.status ?? (requiredPerDay <= Math.max(currentPerDay, targetMinutes) ? "ON_TRACK" : "AT_RISK"),
+      status: risk.status ?? computed,
       requiredPerDay,
       currentPerDay,
       carryOverMinutes: carryNotice.minutes,
       totalRemainingMinutes: totalRemaining,
       daysLeft: daysLeftNum,
+      horizon: syllabusDeadline,
     };
 
     return NextResponse.json({

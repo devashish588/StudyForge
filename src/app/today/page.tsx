@@ -413,7 +413,7 @@ export default function TodayPage() {
     );
   }
 
-  const target = day.targetMinutes || 480;
+  const target = day.targetMinutes || 360;
   const pct = Math.round((day.actualMinutes / Math.max(1, target)) * 100);
   const core = day.coreDayCompleted || day.actualMinutes >= 180;
   const programDay = Math.max(1, getProgramDay(date));
@@ -448,7 +448,7 @@ export default function TodayPage() {
           <span className="font-bold text-white">{minutesToHM(plan?.mission?.journey.targetMinutes ?? target)}</span>
           <span className="text-gray-600">·</span>
           <span className="text-gray-500">Stretch:</span>
-          <span className="font-bold text-gray-300">{minutesToHM(plan?.mission?.journey.stretchMinutes ?? plan?.stretchMinutes ?? 600)}</span>
+          <span className="font-bold text-gray-300">{minutesToHM(plan?.mission?.journey.stretchMinutes ?? plan?.stretchMinutes ?? 480)}</span>
           <span className="text-gray-600">·</span>
           <span className="text-gray-500">GATE syllabus:</span>
           <span className="font-bold text-purple-300">Jan 15</span>
@@ -1235,7 +1235,7 @@ function PlanDayModal({ isOpen, onClose, available, priority, pace, horizons, on
   pace: any; horizons: any;
   onGenerate: (avail: number, prio: FocusPriority, goal: string) => Promise<void>;
 }) {
-  const [hours, setHours] = useState(available >= 600 ? 10 : available >= 540 ? 9 : 8);
+  const [hours, setHours] = useState(available >= 480 ? 8 : available >= 420 ? 7 : 6);
   const [custom, setCustom] = useState("");
   const [prio, setPrio] = useState<FocusPriority>(priority);
   const [goal, setGoal] = useState("");
@@ -1254,9 +1254,9 @@ function PlanDayModal({ isOpen, onClose, available, priority, pace, horizons, on
           <div className="rounded-xl bg-border/20 p-2.5"><p className="text-gray-500">Deadline</p><p className="text-base font-black text-white">{horizons?.syllabusDeadline?.slice(2) ?? "—"}</p></div>
           <div className="rounded-xl bg-border/20 p-2.5"><p className="text-gray-500">Phase</p><p className="text-base font-black capitalize text-white">{horizons?.phase ?? "—"}</p></div>
         </div>
-        <p className="mb-2 mt-5 text-xs font-bold text-gray-300">TIME AVAILABLE</p>
+        <p className="mb-2 mt-5 text-xs font-bold text-gray-300">TIME AVAILABLE <span className="font-normal text-gray-500">(6h floor · 7h good · 8h stretch)</span></p>
         <div className="mb-3 grid grid-cols-3 gap-2">
-          {[8, 9, 10].map((h) => (
+          {[6, 7, 8].map((h) => (
             <button key={h} onClick={() => { setHours(h); setCustom(""); }}
               className={`rounded-xl border py-2.5 text-sm font-bold transition ${!custom && hours === h ? "border-accent bg-accent text-white" : "border-border bg-border/30 text-gray-400"}`}>{h}h</button>
           ))}
