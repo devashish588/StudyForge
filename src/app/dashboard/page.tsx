@@ -55,6 +55,7 @@ const PHASE_ORDER = ["DSA", "Full Stack", "ML", "Generative AI", "RAG", "AI Agen
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardPayload | null>(null);
+  const [dsaPct, setDsaPct] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -69,6 +70,11 @@ export default function DashboardPage() {
       const res = await fetch("/api/dashboard");
       if (!res.ok) throw new Error("Dashboard failed to load");
       setData(await res.json());
+      // DSA slice for MY JOURNEY (real Core-100 progress; non-blocking).
+      fetch("/api/tracks?track=dsa")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((t) => { if (t?.dsa) setDsaPct(t.dsa.core100.percent); })
+        .catch(() => {});
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Failed to load dashboard");
     } finally {
@@ -225,6 +231,32 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {/* 1d — MY JOURNEY: four tracks, real progress, hubs linked */}
+      {data.journey && (
+        <section>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-xl font-bold tracking-tight text-white">My journey</h2>
+            <Link href="/learn" className="text-sm font-bold text-accent hover:underline">Learn →</Link>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2.5">
+            {[
+              { label: "GATE", href: "/gate", pct: data.journey.gateFirstPassPercent, bar: "bg-purple-500" },
+              { label: "AI Engineering", href: "/ai-engineering", pct: data.journey.aiPercent, bar: "bg-indigo-500" },
+              { label: "Software Engineering", href: "/software-engineering", pct: data.journey.swePercent, bar: "bg-emerald-500" },
+              { label: "DSA", href: "/dsa", pct: dsaPct, bar: "bg-amber-500" },
+            ].map((t) => (
+              <Link key={t.label} href={t.href} className="group rounded-xl border border-border bg-card p-4 transition hover:border-accent/40">
+                <p className="truncate text-[11px] font-extrabold uppercase tracking-widest text-gray-400 group-hover:text-gray-200">{t.label}</p>
+                <p className="mt-1 text-xl font-extrabold text-white">{t.pct === null ? "…" : `${t.pct}%`}</p>
+                <div className="mt-2">
+                  <ProgressBar value={t.pct ?? 0} color={t.bar} heightClass="h-1.5" />
+                </div>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 

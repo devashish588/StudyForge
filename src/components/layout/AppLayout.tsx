@@ -8,6 +8,8 @@ import {
   CalendarCheck,
   Map,
   BookOpen,
+  Brain,
+  Server,
   Code2,
   Repeat,
   FolderGit2,
@@ -25,7 +27,9 @@ import {
   Clock,
   Menu,
   X,
-  MoreHorizontal
+  MoreHorizontal,
+  GraduationCap,
+  CurlyBraces
 } from "lucide-react";
 import CommandPalette from "@/components/ui/CommandPalette";
 import TimerModal from "@/components/ui/TimerModal";
@@ -36,6 +40,9 @@ const mainNav = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "GATE 2027", href: "/gate", icon: BookOpen },
+  { name: "AI Engineering", href: "/ai-engineering", icon: Brain },
+  { name: "Software Engineering", href: "/software-engineering", icon: Server },
+  { name: "DSA", href: "/dsa", icon: CurlyBraces },
   { name: "Practice", href: "/practice", icon: Code2 },
   { name: "Revision", href: "/revision", icon: Repeat },
   { name: "Projects", href: "/projects", icon: FolderGit2 },
@@ -59,6 +66,10 @@ const PAGE_LABELS: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/roadmap": "Roadmap",
   "/gate": "GATE 2027",
+  "/ai-engineering": "AI Engineering",
+  "/software-engineering": "Software Engineering",
+  "/dsa": "DSA",
+  "/learn": "Learn",
   "/practice": "Practice",
   "/revision": "Revision",
   "/projects": "Projects",
@@ -83,13 +94,20 @@ function pageLabel(pathname: string): string {
 
 const bottomTabs = [
   { name: "Today", href: "/today", icon: CalendarCheck },
-  { name: "Roadmap", href: "/roadmap", icon: Map },
-  { name: "GATE", href: "/gate", icon: BookOpen },
-  { name: "Revise", href: "/revision", icon: Repeat },
+  { name: "Learn", href: "/learn", icon: GraduationCap },
+  { name: "Build", href: "/projects", icon: FolderGit2 },
+  { name: "Review", href: "/revision", icon: Repeat },
 ];
+
+const LEARN_PATHS = ["/learn", "/gate", "/ai-engineering", "/software-engineering", "/dsa", "/roadmap", "/practice"];
 
 const moreItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Roadmap", href: "/roadmap", icon: Map },
+  { name: "GATE 2027", href: "/gate", icon: BookOpen },
+  { name: "AI Engineering", href: "/ai-engineering", icon: Brain },
+  { name: "Software Engineering", href: "/software-engineering", icon: Server },
+  { name: "DSA", href: "/dsa", icon: CurlyBraces },
   { name: "Practice", href: "/practice", icon: Code2 },
   { name: "Projects", href: "/projects", icon: FolderGit2 },
   { name: "Calendar", href: "/calendar", icon: Calendar },
@@ -373,11 +391,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation: Today / Roadmap / GATE / Revise / More */}
+      {/* Mobile Bottom Navigation: Today / Learn / Build / Review / More */}
       <nav className="no-print pb-safe md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border flex items-center justify-around py-2 px-1">
         {bottomTabs.map((t) => {
           const Icon = t.icon;
-          const active = t.href === "/gate" ? pathname.startsWith("/gate") : pathname === t.href;
+          const active = t.href === "/learn"
+            ? LEARN_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))
+            : t.href === "/projects"
+              ? pathname.startsWith("/projects")
+              : t.href === "/revision"
+                ? pathname.startsWith("/revision")
+                : pathname === t.href;
           return (
             <Link key={t.href} href={t.href} className={`flex flex-col items-center gap-0.5 text-[10px] min-w-[56px] py-1 ${active ? "text-accent font-bold" : "text-gray-400"}`}>
               <Icon className="w-4 h-4" />

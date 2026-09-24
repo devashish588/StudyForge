@@ -15,6 +15,8 @@ import WrapUpModal from "@/components/study/WrapUpModal";
 import RecoveryModal from "@/components/ui/RecoveryModal";
 import { todayStr, formatDisplay, minutesToHM, getProgramDay, getDaysRemaining } from "@/lib/date";
 import { type FocusPriority } from "@/lib/study";
+import { trackOfPlanItem } from "@/lib/tracks";
+import { TrackBadge } from "@/components/tracks/HubBits";
 
 interface Block {
   id: string;
@@ -545,6 +547,7 @@ export default function TodayPage() {
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden />
             <p className="text-xs font-extrabold uppercase tracking-widest text-accent">Current focus — start now</p>
+            <TrackBadge track={trackOfPlanItem(plan.nextAction)} />
           </div>
           <h3 className="mt-3 text-2xl font-extrabold leading-tight text-white md:text-3xl">{plan.nextAction.title}</h3>
           <p className="mt-2 text-sm text-gray-300">{plan.nextAction.detail || `${plan.nextAction.kind} • ${plan.nextAction.minutes} minutes`}</p>
@@ -647,7 +650,7 @@ export default function TodayPage() {
               <li key={it.id} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4">
                 <input type="checkbox" checked={it.done} onChange={() => togglePlanItem(it)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-500" aria-label={`Done: ${it.title}`} />
                 <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}>{it.title} <span className="ml-2 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span></p>
+                  <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}><TrackBadge track={trackOfPlanItem(it)} /> {it.title} <span className="ml-2 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span></p>
                   <p className="mt-1 text-xs italic text-gray-500 line-clamp-2">Why: {it.why}</p>
                 </div>
                 {!it.done && (
@@ -938,7 +941,7 @@ function MissionBlock({ label, purpose, items, highlight, onToggle, onStart, onP
                 className="mt-1 h-5 w-5 shrink-0 accent-emerald-500" aria-label={`Done: ${it.title}`} />
               <div className="min-w-0 flex-1">
                 <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}>
-                  {it.title} <span className="ml-1 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span>
+                  <TrackBadge track={trackOfPlanItem(it)} /> {it.title} <span className="ml-1 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span>
                   {it.completionPercent ? <span className="ml-1 font-mono text-xs text-indigo-300">{it.completionPercent}%</span> : null}
                   {it.carryOverCount ? <span className="ml-1 text-[11px] font-bold text-amber-300">carry #{it.carryOverCount}</span> : null}
                 </p>
@@ -1021,7 +1024,7 @@ function PlanTierSection({ title, items, compact, empty, subtitle, onToggle, onS
                 className="h-6 w-6 shrink-0 cursor-pointer accent-emerald-500" aria-label={`Done: ${it.title}`} />
               <div className="min-w-0 flex-1">
                 <p className={`text-[15px] font-bold ${it.done ? "text-gray-500 line-through" : "text-white"}`}>
-                  {it.title}
+                  <TrackBadge track={trackOfPlanItem(it)} /> {it.title}
                   <span className="ml-2 whitespace-nowrap font-mono text-[13px] font-normal text-gray-500">{it.minutes}m</span>
                 </p>
                 {!compact && (
