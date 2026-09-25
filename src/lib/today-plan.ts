@@ -12,6 +12,7 @@ import type { FocusPriority } from "./study";
 export type PlanTier = "MUST" | "SHOULD" | "COULD";
 export type PlanItemKind = "GATE" | "ROADMAP" | "PRACTICE" | "REVISION" | "PROJECT" | "BACKLOG" | "CUSTOM";
 export type PlanRefType = "gateTopic" | "roadmapTask" | "revisionItem" | "projectTask" | "backlogItem" | "session" | "pyqSet" | "custom" | "note";
+export type LearningStage = "NOT_STARTED" | "LEARNING" | "UNDERSTOOD" | "PRACTICED" | "RECALLED" | "REVISED" | "MASTERED";
 
 export interface PlanItem {
   id: string;
@@ -40,6 +41,7 @@ export interface PlanItem {
   completionPercent?: number;
   carryOverCount?: number;
   sourceDate?: string | null;
+  learningStage?: LearningStage;
   // Today goal checklist (presentation metadata only — never affects planning).
   // fitted: item was capacity-fitted by the builder (scheduled work).
   // extra: user-added extra (recorded work beyond the generated plan).

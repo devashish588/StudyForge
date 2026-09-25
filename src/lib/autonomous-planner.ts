@@ -99,41 +99,101 @@ export function classifyTrack(kind: PlanItemKind, categoryOrTitle: string): Trac
   return "SOFTWARE_ENGINEERING";
 }
 
-// Prerequisite chain for AI Engineering (spec §4). An item whose title
-// matches a later stage is BLOCKED while any earlier-stage topic string is
-// still in the incomplete set. Keyword-based so it works on existing data
-// without a parallel curriculum table.
-const AI_CHAIN: { stage: number; re: RegExp; label: string }[] = [
-  { stage: 0, re: /(python for ai|ml workflow|preprocessing|feature engineering|model selection|evaluation)/, label: "foundations" },
-  { stage: 1, re: /\btoken|context window/, label: "tokens/context" },
-  { stage: 2, re: /transformer|attention/, label: "transformers" },
-  { stage: 3, re: /prompt/, label: "prompting" },
-  { stage: 4, re: /embedding/, label: "embeddings" },
-  { stage: 5, re: /vector|semantic search|chromadb|pinecone|chunking/, label: "vector search" },
-  { stage: 6, re: /\brag\b|retrieval|rerank|bm25|hybrid/, label: "RAG" },
-  { stage: 7, re: /evals?|evaluation|benchmark|grounding|citation/, label: "evaluation" },
-  { stage: 8, re: /agent|react loop|tool|langgraph|orchestrat|memory/, label: "agents" },
-  { stage: 9, re: /production|deploy|docker|ci\/cd|k8s|kubernetes|observability|tracing|monitor|fastapi|redis/, label: "productionization" },
+// Track progression chains (spec §4). A topic or PYQ/revision item whose title
+// matches a later stage is BLOCKED while any earlier foundational stage topic is
+// still in the incomplete set. Keyword-based so it works on existing data.
+interface ProgressionChainItem {
+  stage: number;
+  re: RegExp;
+  label: string;
+}
+
+const AI_CHAIN: ProgressionChainItem[] = [
+  { stage: 0, re: /(python for ai|ml workflow|preprocessing|feature engineering|model selection|evaluation foundations)/i, label: "AI Foundations" },
+  { stage: 1, re: /\btoken|context window/i, label: "Tokens & Context" },
+  { stage: 2, re: /transformer|attention/i, label: "Transformers" },
+  { stage: 3, re: /prompt/i, label: "Prompt Engineering" },
+  { stage: 4, re: /embedding/i, label: "Embeddings" },
+  { stage: 5, re: /vector|semantic search|chromadb|pinecone|chunking/i, label: "Vector Search" },
+  { stage: 6, re: /\brag\b|retrieval|rerank|bm25|hybrid/i, label: "RAG" },
+  { stage: 7, re: /evals?|evaluation|benchmark|grounding|citation/i, label: "RAG Evaluation" },
+  { stage: 8, re: /agent|react loop|tool|langgraph|orchestrat|memory/i, label: "Agents" },
+  { stage: 9, re: /production|deploy|docker|ci\/cd|k8s|kubernetes|observability|tracing|monitor|fastapi|redis/i, label: "Production AI" },
 ];
 
-function aiStage(title: string): number {
+const DSA_CHAIN: ProgressionChainItem[] = [
+  { stage: 0, re: /(dsa introduction|big-?o|complexity|asymptotic|dsa foundations)/i, label: "DSA Foundations & Big-O" },
+  { stage: 1, re: /(array|vector)/i, label: "Arrays Fundamentals" },
+  { stage: 2, re: /(string|pattern matching)/i, label: "Strings" },
+  { stage: 3, re: /(linked list)/i, label: "Linked Lists" },
+  { stage: 4, re: /(stack|queue)/i, label: "Stacks & Queues" },
+  { stage: 5, re: /(binary search|two pointers|sliding window)/i, label: "Binary Search & Pointers" },
+  { stage: 6, re: /(tree|binary tree|bst)/i, label: "Trees & BST" },
+  { stage: 7, re: /(heap|priority queue)/i, label: "Heaps" },
+  { stage: 8, re: /(graph|bfs|dfs)/i, label: "Graphs" },
+  { stage: 9, re: /(backtracking|trie)/i, label: "Backtracking & Trie" },
+  { stage: 10, re: /(\bdp\b|dynamic programming|greedy)/i, label: "DP & Greedy" },
+];
+
+const SWE_CHAIN: ProgressionChainItem[] = [
+  { stage: 0, re: /(backend|http|rest|api|express)/i, label: "Backend & API Fundamentals" },
+  { stage: 1, re: /(postgresql|sql|database|prisma|schema)/i, label: "Databases" },
+  { stage: 2, re: /(redis|cache|queue|worker)/i, label: "Caching & Queues" },
+  { stage: 3, re: /(testing|docker|ci\/cd|container)/i, label: "Testing & DevOps" },
+  { stage: 4, re: /(system design|architecture)/i, label: "System Design" },
+];
+
+const GATE_CHAIN: ProgressionChainItem[] = [
+  { stage: 0, re: /(discrete|logic|proposition|set theory|boolean)/i, label: "Discrete Math & Logic" },
+  { stage: 1, re: /(c programming|data structure|algorithm)/i, label: "CS Fundamentals & Algorithms" },
+  { stage: 2, re: /(operating system|dbms|computer network)/i, label: "Core CS Systems" },
+  { stage: 3, re: /(compiler|theory of computation|digital logic)/i, label: "Theoretical CS" },
+];
+
+function getChainForTrack(track: Track): ProgressionChainItem[] {
+  switch (track) {
+    case "AI_ENGINEERING": return AI_CHAIN;
+    case "DSA": return DSA_CHAIN;
+    case "SOFTWARE_ENGINEERING": return SWE_CHAIN;
+    case "GATE": return GATE_CHAIN;
+  }
+}
+
+function getTopicStage(title: string, track: Track): number {
+  const chain = getChainForTrack(track);
   const t = title.toLowerCase();
   let stage = -1;
-  for (const c of AI_CHAIN) if (c.re.test(t)) stage = Math.max(stage, c.stage);
+  for (const c of chain) if (c.re.test(t)) stage = Math.max(stage, c.stage);
   return stage;
 }
 
 /** True when an earlier-chain topic is still incomplete → hold this item. */
 export function prereqBlocked(candidate: WorkCandidate, incompleteTitles: string[]): string | null {
-  const st = aiStage(candidate.title);
-  if (st <= 1) return null;
-  const lower = incompleteTitles.map((t) => t.toLowerCase());
-  for (const c of AI_CHAIN) {
-    if (c.stage >= st) break;
-    const hit = lower.find((t) => c.re.test(t));
-    if (hit) return `Prerequisite “${c.label}” still incomplete — protected before advanced work.`;
+  const chain = getChainForTrack(candidate.track);
+  const st = getTopicStage(candidate.title, candidate.track);
+  const lowerIncomplete = incompleteTitles.map((t) => t.toLowerCase());
+
+  // Prerequisite correctness > deadline priority > weakness > revision
+  // Beginner protection rule: PYQs or revision items for a track are BLOCKED if foundational
+  // (stage 0) roadmap/curriculum items for that track are still incomplete.
+  const isPyqOrRevision = candidate.revisionDue || candidate.kind === "REVISION" || /(pyq|10 pyqs)/i.test(candidate.title);
+
+  if (isPyqOrRevision && chain.length > 0) {
+    const stage0 = chain[0];
+    const hit = lowerIncomplete.find((t) => stage0.re.test(t));
+    if (hit) {
+      return `Prerequisite foundational topic “${stage0.label}” still incomplete — protected before PYQs or revision.`;
+    }
   }
-  // Explicit prerequisites list (RoadmapTask.prerequisites JSON)
+
+  if (st > 0) {
+    for (const c of chain) {
+      if (c.stage >= st) break;
+      const hit = lowerIncomplete.find((t) => c.re.test(t));
+      if (hit) return `Prerequisite “${c.label}” still incomplete — protected before advanced work.`;
+    }
+  }
+
   return null;
 }
 
@@ -144,6 +204,12 @@ export function prereqBlocked(candidate: WorkCandidate, incompleteTitles: string
 export function priorityScore(c: WorkCandidate, ctx: PlannerContext): [number, number, number, number, number, string] {
   // Tier 0: overdue carry-over (spec §9.1) — but NOT above hard deadline math.
   const isCarry = c.carryOverCount > 0 ? 0 : 1;
+
+  // Prerequisite correctness > deadline priority:
+  // Foundations (stage 0) sort before advanced work or PYQs when foundations are present.
+  const st = getTopicStage(c.title, c.track);
+  const foundationBonus = st === 0 ? -20 : 0;
+
   // Tier 1: deadline risk — GATE items escalate as Jan 15 nears; overdue grows.
   let deadline = 50;
   if (c.track === "GATE") {
@@ -164,7 +230,7 @@ export function priorityScore(c: WorkCandidate, ctx: PlannerContext): [number, n
   const repair = c.revisionDue ? 0 : c.kind === "GATE" && c.openErrors > 0 ? 1 : 5;
   // Tier 4: CORE > IMPORTANT > OPTIONAL (optional never crowds critical).
   const tier = c.priority === "CORE" ? 0 : c.priority === "IMPORTANT" ? 10 : 30;
-  return [tier, deadline, isCarry === 0 ? -10 : 0, weakness + repair, c.overdueDays > 0 ? -c.overdueDays : 0, c.refId];
+  return [tier, deadline + foundationBonus, isCarry === 0 ? -10 : 0, weakness + repair, c.overdueDays > 0 ? -c.overdueDays : 0, c.refId];
 }
 
 export function compareCandidates(a: WorkCandidate, b: WorkCandidate, ctx: PlannerContext): number {
@@ -210,6 +276,7 @@ function toPlanItem(c: WorkCandidate, block: CognitiveBlock, why: string, date: 
     refId: c.refId,
     why,
     done: false,
+    learningStage: c.revisionDue || c.kind === "REVISION" ? "REVISED" : c.kind === "PRACTICE" ? "PRACTICED" : c.minutes < c.originalMinutes ? "LEARNING" : "NOT_STARTED",
     ...(c.sourceDate ? { movedFrom: c.sourceDate } : {}),
   };
 }
