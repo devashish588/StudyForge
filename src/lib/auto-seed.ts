@@ -6,7 +6,7 @@ import {
 } from "../../prisma/curriculum-v4";
 import { todayStr } from "./date";
 
-const STUDY_START = "2026-09-24";
+const STUDY_START = "2026-09-26";
 
 function addDaysStr(base: string, days: number): string {
   const [y, m, d] = base.split("-").map(Number);

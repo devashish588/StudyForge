@@ -2,7 +2,7 @@
 // All business logic MUST use these helpers — do not scatter `new Date()`.
 // Application timezone: local device timezone, day boundary at local midnight.
 //
-// Active program: 2026-09-24 (Day 1) → 2026-12-31 (Day 99).
+// Active program: 2026-09-26 (Day 1) → 2026-12-31 (Day 97).
 // STUDY_* constants below describe the legacy data window (kept only so
 // historical/demo rows stay readable); all ACTIVE calculations must use
 // the PROGRAM_* constants and getProgramDay()/getDaysRemaining().
@@ -11,12 +11,12 @@ export const STUDY_START_STR = "2026-08-24";
 export const STUDY_END_STR = "2026-12-31";
 export const TOTAL_STUDY_DAYS = 130;
 
-export const PROGRAM_START_STR = "2026-09-24";
+export const PROGRAM_START_STR = "2026-09-26";
 export const PROGRAM_END_STR = "2026-12-31";
-export const PROGRAM_TOTAL_DAYS = 99;
+export const PROGRAM_TOTAL_DAYS = 97;
 
 /** Milestone program-days that trigger a subtle celebration (no confetti). */
-export const MILESTONE_DAYS = [7, 14, 30, 50, 75, 99];
+export const MILESTONE_DAYS = [7, 14, 30, 50, 75, 97];
 
 export function toDateStr(d: Date): string {
   const y = d.getFullYear();

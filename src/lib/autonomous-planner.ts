@@ -503,7 +503,7 @@ export function adaptFactor(samples: { planned: number; actual: number }[]): num
   return Math.min(1.5, Math.max(0.7, Math.round(mean * 100) / 100));
 }
 
-export function journeyDay(dateStr: string, programStart = "2026-09-24"): number {
+export function journeyDay(dateStr: string, programStart = "2026-09-26"): number {
   const [y1, m1, d1] = programStart.split("-").map(Number);
   const [y2, m2, d2] = dateStr.split("-").map(Number);
   const a = new Date(y1, m1 - 1, d1, 12).getTime();
