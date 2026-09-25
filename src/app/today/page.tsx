@@ -250,6 +250,9 @@ export default function TodayPage() {
           done: false,
         });
         showNotice(`Unmarked — ${sub.title}`);
+      } else if (sub.refType === "revisionItem" && sub.refId) {
+        await patchPlan({ action: "toggle-item", itemId: sub.id, done: false });
+        showNotice(`Unmarked revision — ${sub.title}`);
       } else {
         await patchPlan({ action: "toggle-item", itemId: sub.id, done: false });
         showNotice(`Unmarked — ${sub.title}`);

@@ -908,6 +908,18 @@ async function unmarkAtomicProgress(item: PlanItem, sourceDate: string) {
           },
         });
       }
+    } else if (item.refType === "revisionItem" && item.refId) {
+      const row = await prisma.revisionItem.findUnique({ where: { id: item.refId } });
+      if (row) {
+        if ((row.lastRevisedDate ?? "") >= sourceDate) {
+          await prisma.revisionItem.update({
+            where: { id: item.refId },
+            data: {
+              lastRevisedDate: null,
+            },
+          });
+        }
+      }
     }
   } catch (e) {
     console.error("unmarkAtomicProgress error:", e);
