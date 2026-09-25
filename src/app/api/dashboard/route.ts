@@ -232,9 +232,9 @@ export async function GET(req: Request) {
     };
 
     const AI_CATS = ["ML", "Generative AI", "RAG", "AI Agents"];
-    const aiTasks = allRoadmapTasks.filter((t) => AI_CATS.includes(t.category));
+    const aiTasks = allRoadmapTasks.filter((t) => t.category === "ML" || t.category === "Generative AI" || t.category === "RAG" || t.category === "AI Agents" || t.track === "AI_ENGINEERING");
     const aiDone = aiTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
-    const sweTasks = allRoadmapTasks.filter((t) => !AI_CATS.includes(t.category));
+    const sweTasks = allRoadmapTasks.filter((t) => !AI_CATS.includes(t.category) && t.category !== "ML" && t.category !== "Generative AI" && t.category !== "RAG" && t.category !== "AI Agents" && t.track !== "AI_ENGINEERING");
     const sweDone = sweTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
     const gateTopics = await prisma.gateTopic.findMany({ select: { completed: true, estimatedMinutes: true, priority: true } });
     const gateDone = gateTopics.filter((t) => t.completed).length;

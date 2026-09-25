@@ -479,8 +479,9 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
     id: `${date}:practice:set`,
     kind: "PRACTICE", tier: "SHOULD",
     title: `${practiceProblems} practice problems`,
-    detail: `Mixed set · ~${budget.practice}m`,
+    detail: `DSA · Core 100 · Mixed set · ~${budget.practice}m`,
     minutes: budget.practice, refType: "custom",
+    track: "SOFTWARE_ENGINEERING",
     why: "Every learning topic ships with a practice requirement — Learn → Practice → Recall.",
     done: false,
   };

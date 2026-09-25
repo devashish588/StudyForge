@@ -3,7 +3,7 @@
    - _next/static + icons/manifest: cache-first.
    - /api/*: network-only (never serve or cache mutations/reads that must be fresh).
 */
-const VERSION = "sf-v3-1";
+const VERSION = "sf-v3-2";
 const SHELL = ["/today", "/offline-fallback"];
 const STATIC_CACHE = `sf-static-${VERSION}`;
 const SHELL_CACHE = `sf-shell-${VERSION}`;

@@ -77,7 +77,7 @@ function goalMeta(key: string, first: PlanItem): { eyebrow: string; title: strin
   }
   if (kind === "PROJECT") return { eyebrow: "PROJECT", title: name };
   if (kind === "REVISION") return { eyebrow: "REVISION", title: "Revision" };
-  if (kind === "PRACTICE") return { eyebrow: "PRACTICE", title: "Practice set" };
+  if (kind === "PRACTICE") return { eyebrow: "DSA — Core 100", title: `Practice · ${first.title}` };
   if (kind === "BACKLOG") return { eyebrow: "BACKLOG", title: "Backlog" };
   return { eyebrow: "EXTRA", title: "Extra" };
 }
