@@ -98,6 +98,7 @@ export default function TodayPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [planItems, setPlanItems] = useState<PlanItem[]>([]);
   const [mission, setMission] = useState<any>(null);
+  const [sessions, setSessions] = useState<{ label: string; start: string; end: string; duration: number; track: string; subject: string; topic: string; purpose: string; items: { id: string; title: string; minutes: number; done: boolean; refId?: string }[]; doneCount: number; totalCount: number }[]>([]);
   const [studyDay, setStudyDay] = useState<{ actualMinutes: number; targetMinutes: number }>({ actualMinutes: 0, targetMinutes: 360 });
   const [notice, setNotice] = useState<{ text: string; key: number } | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -117,9 +118,13 @@ export default function TodayPage() {
   const fetchAll = useCallback(async () => {
     try {
       setLoadError(null);
-      const res = await fetch(`/api/today-plan?date=${todayStr()}`);
-      if (!res.ok) throw new Error("Today's plan could not be loaded.");
-      const data = await res.json();
+      const d = todayStr();
+      const [planRes, plannerRes] = await Promise.all([
+        fetch(`/api/today-plan?date=${d}`),
+        fetch(`/api/planner?mode=day&date=${d}`).catch(() => null),
+      ]);
+      if (!planRes.ok) throw new Error("Today's plan could not be loaded.");
+      const data = await planRes.json();
       const items: PlanItem[] = [
         ...(data.plan?.items ?? []),
       ];
@@ -129,6 +134,12 @@ export default function TodayPage() {
         actualMinutes: data.studyDay?.actualMinutes ?? 0,
         targetMinutes: data.mission?.journey?.targetMinutes ?? data.studyDay?.targetMinutes ?? 360,
       });
+      if (plannerRes && plannerRes.ok) {
+        const pData = await plannerRes.json();
+        setSessions(pData.sessions ?? []);
+      } else {
+        setSessions([]);
+      }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "Today's plan could not be loaded.");
     } finally {
@@ -397,6 +408,40 @@ export default function TodayPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Today's schedule — time-specific, from study windows + fitted work */}
+      {sessions.length > 0 && (
+        <section aria-label="Today's schedule">
+          <h2 className="type-h2">Today&apos;s schedule</h2>
+          <p className="type-metadata mt-1">Each block uses your configured study windows. Hard topics keep long contiguous time; light topics are packed. Check subtopics above — schedule reflects the same canonical work.</p>
+          <ol className="mt-3 space-y-3">
+            {sessions.map((s) => (
+              <li key={s.label + s.start} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-mono text-xs font-bold text-accent">{s.start}–{s.end} · {s.label}</p>
+                  <span className="rounded-full border border-border bg-border/20 px-2 py-0.5 text-[11px] font-bold text-gray-400">{s.purpose.toLowerCase()}</span>
+                </div>
+                <p className="mt-1 text-sm font-bold text-white">{s.track} — {s.subject}</p>
+                <p className="text-xs text-gray-400">{s.topic}</p>
+                <ul className="mt-2 space-y-1">
+                  {s.items.map((it) => {
+                    const isDone = planItems.find((p) => (p.refId && it.refId && p.refId === it.refId) || p.id === it.id)?.done ?? it.done;
+                    return (
+                      <li key={it.id} className="flex items-center gap-2 text-xs">
+                        <span className={isDone ? "text-emerald-400" : "text-gray-600"}>{isDone ? "☑" : "☐"}</span>
+                        <span className={`flex-1 truncate ${isDone ? "text-gray-500 line-through" : "text-gray-300"}`}>{it.title}</span>
+                        <span className="shrink-0 font-mono text-[11px] text-gray-500">{it.minutes}m</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-2 text-right font-mono text-[11px] text-gray-500">{s.duration}m · {s.doneCount}/{s.totalCount} in this block</p>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-2 text-xs text-gray-500">Windows from Settings → Study windows. Total scheduled {sessions.reduce((a, s) => a + s.duration, 0)}m fits within {minutesToHM(target)} target. Queued overflow is separate.</p>
         </section>
       )}
 
