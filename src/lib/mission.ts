@@ -13,7 +13,11 @@ import {
   remainingMinutes, weeklyRebalance,
   type Mission, type PlannerContext, type ScheduleRisk, type Track, type WorkCandidate,
 } from "./autonomous-planner";
-import { diffDays, PROGRAM_END_STR } from "./date";
+import {
+  buildCurriculumOutlook, daysToDeadline, AI_PROJECT_RE,
+  type CurriculumOutlook,
+} from "./curriculum";
+import { diffDays, PROGRAM_END_STR, CURRICULUM_DEADLINE_DEFAULT } from "./date";
 import type { EngineInput, PlanItem, TodayPlan } from "./today-plan";
 
 export interface JourneyInfo {
@@ -42,12 +46,15 @@ export interface MissionPayload {
   scheduleRisk: ScheduleRisk;
   rebalance: { gateShare: number; aiShare: number; sweShare: number; reason: string };
   deferred: PlanItem[];
+  /** Curriculum-completion outlook (required pace vs target date, per track).
+      Powers the Today curriculum header and stays consistent with Learn. */
+  curriculum?: CurriculumOutlook;
   adaptation?: {
     plannedMinutes: number;
     actualMinutes: number;
     completionRate: number;
     carryOverMinutes: number;
-    sustainablePerDay: number;
+    sustainablePerDay: number | null;
   };
 }
 
@@ -133,15 +140,85 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   const daysToGate = Math.max(1, diffDays(date, input.settings.syllabusDeadline) + (date <= input.settings.syllabusDeadline ? 1 : 0));
   // "Behind" signals require real history — Day-1 zero baselines must not cry wolf.
   const hasHistory = input.days.length >= 7 || (plan.pace.currentTopicsPerDay ?? 0) > 0;
+
+  // ---- curriculum-completion pacing (single source for selection pressure,
+  // risk math, and the Today/Learn outlook). Required work = CORE + IMPORTANT
+  // only; OPTIONAL is spare-capacity-only. Same rows the risk math uses below.
+  const curriculumDeadline = input.settings.curriculumDeadline || CURRICULUM_DEADLINE_DEFAULT;
+  const syllabusDeadline = input.settings.syllabusDeadline;
+
+  const gateOpenRows = input.gateTopics.filter((t) => !t.completed);
+  const gateDoneCount = input.gateTopics.length - gateOpenRows.length;
+  let gateRemaining = 0;
+  let gatePrepRemaining = 0;
+  let currOptional = 0;
+  for (const t of gateOpenRows) {
+    const mins = remainingMinutes(t.estimatedMinutes, 0, t.remainingMinutes);
+    if (t.priority === "OPTIONAL") currOptional += mins;
+    else gateRemaining += mins;
+  }
+  let aiRemaining = 0, sweRemaining = 0;
+  let aiDone = 0, aiTotal = 0, sweDone = 0, sweTotal = 0;
+  for (const t of input.roadmapTasks) {
+    const bucket = t.track === "AI_ENGINEERING" ? "AI"
+      : t.track === "SOFTWARE_ENGINEERING" ? "SWE"
+      : t.track === "GATE_PREP" ? "GATEPREP"
+      : (classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "AI_ENGINEERING" ? "AI" : "SWE");
+    const isDone = t.status === "COMPLETED" || t.status === "PRACTICE";
+    if (bucket === "AI") { aiTotal++; if (isDone) aiDone++; }
+    else if (bucket === "SWE") { sweTotal++; if (isDone) sweDone++; }
+    if (isDone) continue;
+    const mins = remainingMinutes(t.estimatedTimeMinutes, t.actualMinutes, t.remainingMinutes);
+    if (t.priority === "OPTIONAL") { currOptional += mins; continue; }
+    if (bucket === "AI") aiRemaining += mins;
+    else if (bucket === "SWE") sweRemaining += mins;
+    else gatePrepRemaining += mins; // exam-prep tasks pace against the GATE track
+  }
+  let aiProjRemaining = 0, sweProjRemaining = 0, projOptional = 0;
+  for (const p of input.projects) {
+    for (const t of p.tasks.filter((t) => !t.completed)) {
+      const mins = Math.max(0, (t.estimatedMinutes ?? 60));
+      if ((t.priority ?? "IMPORTANT") === "OPTIONAL") { projOptional += mins; continue; }
+      if (AI_PROJECT_RE.test(`${p.name} ${t.title}`)) aiProjRemaining += mins;
+      else sweProjRemaining += mins;
+    }
+  }
+  const practiceSolved = input.practiceSolved ?? 0;
+  const practiceTotal = input.practiceTotal ?? 0;
+  const practiceRemaining = Math.max(0, input.practiceRemainingMinutes ?? 0);
+
+  const recentActual = input.days.slice(-7).filter((d) => d.actualMinutes > 0).map((d) => d.actualMinutes);
+  // No history → unknown (null), never 0. A zero would fake evidence and
+  // force OVERLOAD on day one.
+  const sustainable = recentActual.length ? Math.round(recentActual.reduce((a, b) => a + b, 0) / recentActual.length) : null;
+
+  const curriculum = buildCurriculumOutlook(
+    date,
+    curriculumDeadline,
+    [
+      { key: "gate", label: "GATE", done: gateDoneCount, total: input.gateTopics.length, remainingMinutes: gateRemaining + gatePrepRemaining, deadline: syllabusDeadline },
+      { key: "ai", label: "AI Engineering", done: aiDone, total: aiTotal, remainingMinutes: aiRemaining + aiProjRemaining, deadline: curriculumDeadline },
+      { key: "swe", label: "Software Engineering", done: sweDone, total: sweTotal, remainingMinutes: sweRemaining + sweProjRemaining, deadline: curriculumDeadline },
+      { key: "dsa", label: "DSA", done: practiceSolved, total: practiceTotal, remainingMinutes: practiceRemaining, deadline: curriculumDeadline },
+    ],
+    sustainable, capacity,
+    { gate: 0.375, ai: 0.375, swe: 0.25, dsa: 0.25 },
+    hasHistory,
+    stretchMinutes
+  );
+  const behindByKey = new Map(curriculum.tracks.map((t) => [t.key, t.behind]));
+
   const ctx: PlannerContext = {
     date,
     capacity,
     stretch: stretchMinutes,
-    daysToRoadmapEnd: Math.max(1, diffDays(date, PROGRAM_END_STR) + 1),
+    daysToRoadmapEnd: daysToDeadline(date, curriculumDeadline),
     daysToGateDeadline: daysToGate,
     gateBehind: hasHistory && (plan.pace.driftTopicsPerDay ?? 0) < 0,
-    aiBehind: false,
-    sweBehind: false,
+    // Real deadline-pressure signals (required pace vs pro-rata proven pace).
+    // Previously hardcoded false, so behind tracks never got selection pressure.
+    aiBehind: behindByKey.get("ai") ?? false,
+    sweBehind: behindByKey.get("swe") ?? false,
     projectDueSoon: false,
     completedTitles: new Set(plan.items.filter((i) => i.done).map((i) => i.title.toLowerCase())),
   };
@@ -170,32 +247,14 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   // Jan-15 feasibility: CORE + IMPORTANT count toward required pace; OPTIONAL
   // is spare-capacity-only by design (spec §29) and reported separately.
   // Project milestones carry estimates, so they count too — nothing hidden.
-  const remainingByTrack: Record<Track, number> = { GATE: 0, AI_ENGINEERING: 0, SOFTWARE_ENGINEERING: 0 };
-  let optionalMinutes = 0;
-  for (const t of input.gateTopics.filter((t) => !t.completed)) {
-    const mins = remainingMinutes(t.estimatedMinutes, 0, t.remainingMinutes);
-    if (t.priority === "OPTIONAL") optionalMinutes += mins;
-    else remainingByTrack.GATE += mins;
-  }
-  for (const t of input.roadmapTasks.filter((t) => t.status !== "COMPLETED" && t.status !== "PRACTICE")) {
-    const track = classifyTrack("ROADMAP", `${t.category} ${t.title}`);
-    const mins = remainingMinutes(t.estimatedTimeMinutes, t.actualMinutes, t.remainingMinutes);
-    if (t.priority === "OPTIONAL") optionalMinutes += mins;
-    else remainingByTrack[track] += mins;
-  }
-  for (const p of input.projects) {
-    for (const t of p.tasks.filter((t) => !t.completed)) {
-      const mins = Math.max(0, (t.estimatedMinutes ?? 60));
-      const track = /RAG|Agent|Chatbot|ML Prediction|Containerized/i.test(`${p.name} ${t.title}`) ? "AI_ENGINEERING" : "SOFTWARE_ENGINEERING";
-      if ((t.priority ?? "IMPORTANT") === "OPTIONAL") optionalMinutes += mins;
-      else remainingByTrack[track] += mins;
-    }
-  }
-  // Practice bank (Core 100): unsolved remainder counts toward feasibility —
-  // excluding it would understate required pace by ~78h.
-  remainingByTrack.SOFTWARE_ENGINEERING += Math.max(0, input.practiceRemainingMinutes ?? 0);
-  const recentActual = input.days.slice(-7).filter((d) => d.actualMinutes > 0).map((d) => d.actualMinutes);
-  const sustainable = recentActual.length ? Math.round(recentActual.reduce((a, b) => a + b, 0) / recentActual.length) : capacity;
+  // Bucket split reuses the curriculum computation above (exam-prep tasks pace
+  // with GATE; totals are identical to the previous inline computation).
+  const remainingByTrack: Record<Track, number> = {
+    GATE: gateRemaining + gatePrepRemaining,
+    AI_ENGINEERING: aiRemaining + aiProjRemaining,
+    SOFTWARE_ENGINEERING: sweRemaining + sweProjRemaining + practiceRemaining,
+  };
+  const optionalMinutes = currOptional + projOptional;
   // Overall horizon = Jan-15 syllabus deadline (114-day window); the Dec-31
   // roadmap milestone stays visible via pace/phase UI.
   const daysToHorizon = Math.max(1, diffDays(date, input.settings.syllabusDeadline) + (date <= input.settings.syllabusDeadline ? 1 : 0));
@@ -204,24 +263,22 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     daysLeft: daysToHorizon,
     sustainablePerDay: sustainable,
     capacityPerDay: capacity,
+    stretchPerDay: stretchMinutes,
     optionalMinutes,
     horizonDate: input.settings.syllabusDeadline,
   });
 
-  const aiRemaining = remainingByTrack.AI_ENGINEERING;
-  const sweRemaining = remainingByTrack.SOFTWARE_ENGINEERING;
   const rebalance = weeklyRebalance({
     gateProgress: 0, aiProgress: 0, sweProgress: 0,
     gateBehind: ctx.gateBehind,
-    aiBehind: aiRemaining > sweRemaining * 1.5 && aiRemaining > 600,
-    sweBehind: sweRemaining > aiRemaining * 1.5 && sweRemaining > 600,
+    aiBehind: ctx.aiBehind,
+    sweBehind: ctx.sweBehind,
     baseShares: { gate: 0.375, ai: 0.375, swe: 0.25 },
   });
 
   // Fallback routing: if the mission builder left items unscheduled (e.g. all
   // blocked), route leftovers by the fixed block rules so /today always shows
-  // exactly what to study in Easy → Hard → Easy → Recall order.
-  // These leftovers are VISIBLE but NOT capacity-fitted: their minutes count
+  // exactly what to study in Easy → Hard → Easy → Recall order.  // These leftovers are VISIBLE but NOT capacity-fitted: their minutes count
   // toward overflowMinutes, never toward totalPlannedMinutes.
   const scheduledIds = new Set([...carryOver, ...easyStart, ...hardDeepWork, ...easyApply, ...recall].map((i) => i.refId ?? i.id));
   const fittedTotal = [...carryOver, ...easyStart, ...hardDeepWork, ...easyApply, ...recall].reduce((a, i) => a + i.minutes, 0);
@@ -258,9 +315,10 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     totalPlannedMinutes: totalPlanned,
     overflowMinutes: overflowTotal,
     remainingCapacity: Math.max(0, capacity - totalPlanned),
-    scheduleRisk,
-    rebalance,
-    deferred: mission.deferred,
-    adaptation: input.adaptation,
+  scheduleRisk,
+  rebalance,
+  curriculum,
+  deferred: mission.deferred,
+  adaptation: input.adaptation,
   };
 }

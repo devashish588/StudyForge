@@ -48,6 +48,11 @@ interface DashboardPayload {
   coreDayComplete: boolean;
   carryNotice?: { hasCarry: boolean; prevDate: string; count: number; minutes: number; items: { title: string; minutes: number }[]; resolved: boolean };
   journey?: { completedDays: number; totalDays: number; roadmapPercent: number; aiPercent: number; swePercent: number; gateFirstPassPercent: number; roadmapDeadline: string; gateDeadline: string };
+  curriculum?: {
+    targetDate: string; daysLeft: number;
+    overall: { done: number; total: number; percent: number; remainingMinutes: number; requiredPerDay: number; status: string };
+    tracks: { key: string; label: string; done: number; total: number; percent: number; remainingMinutes: number; deadline: string; daysLeft: number; requiredPerDay: number; status: string }[];
+  };
   schedule?: { status: string; requiredPerDay: number; currentPerDay: number; carryOverMinutes: number; totalRemainingMinutes: number; daysLeft: number };
 }
 
@@ -243,19 +248,27 @@ export default function DashboardPage() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2.5">
             {[
-              { label: "GATE", href: "/gate", pct: data.journey.gateFirstPassPercent, bar: "bg-purple-500" },
-              { label: "AI Engineering", href: "/ai-engineering", pct: data.journey.aiPercent, bar: "bg-indigo-500" },
-              { label: "Software Engineering", href: "/software-engineering", pct: data.journey.swePercent, bar: "bg-emerald-500" },
-              { label: "DSA", href: "/dsa", pct: dsaPct, bar: "bg-amber-500" },
-            ].map((t) => (
+              { key: "gate", label: "GATE", href: "/gate", pct: data.journey.gateFirstPassPercent, bar: "bg-purple-500" },
+              { key: "ai", label: "AI Engineering", href: "/ai-engineering", pct: data.journey.aiPercent, bar: "bg-indigo-500" },
+              { key: "swe", label: "Software Engineering", href: "/software-engineering", pct: data.journey.swePercent, bar: "bg-emerald-500" },
+              { key: "dsa", label: "DSA", href: "/dsa", pct: dsaPct, bar: "bg-amber-500" },
+            ].map((t) => {
+              const pace = data.curriculum?.tracks.find((x) => x.key === t.key);
+              return (
               <Link key={t.label} href={t.href} className="group rounded-xl border border-border bg-card p-4 transition hover:border-accent/40">
                 <p className="truncate text-[11px] font-extrabold uppercase tracking-widest text-gray-400 group-hover:text-gray-200">{t.label}</p>
                 <p className="mt-1 text-xl font-extrabold text-white">{t.pct === null ? "…" : `${t.pct}%`}</p>
                 <div className="mt-2">
                   <ProgressBar value={t.pct ?? 0} color={t.bar} heightClass="h-1.5" />
                 </div>
+                {pace && (
+                  <p className="mt-1.5 truncate font-mono text-[11px] text-gray-500">
+                    {minutesToHM(pace.requiredPerDay)}/day · {pace.status === "ON_TRACK" ? "on track" : pace.status === "AT_RISK" ? "at risk" : "overload"}
+                  </p>
+                )}
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

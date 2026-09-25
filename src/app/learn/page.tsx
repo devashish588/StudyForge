@@ -36,6 +36,9 @@ export default function LearnPage() {
       const tracks = await tracksRes.json();
       const gate = await gateRes.json();
       const subjects: any[] = gate.subjects || [];
+      const paceHint = (p: any) =>
+        p ? ` · ${p.requiredPerDay}m/day required · due ${String(p.deadline).slice(5)} · ` +
+          (p.status === "on-track" ? "on track" : p.status === "behind" ? "behind" : p.status) : "";
       const topics = subjects.flatMap((s) => s.topics || []);
       const topicsDone = topics.filter((t: any) => t.completed).length;
       const out: TrackRow[] = [
@@ -43,25 +46,25 @@ export default function LearnPage() {
           key: "gate", label: "GATE", href: "/gate", icon: "gate",
           done: topicsDone, total: topics.length,
           percent: topics.length ? Math.round((topicsDone / topics.length) * 100) : 0,
-          hint: `${subjects.length} subjects · syllabus first-pass`,
+          hint: `${subjects.length} subjects · syllabus first-pass${paceHint(tracks.gatePace)}`,
         },
         {
           key: "ai", label: "AI Engineering", href: "/ai-engineering", icon: "ai",
           done: tracks.ai?.progress?.done ?? 0, total: tracks.ai?.progress?.total ?? 0,
           percent: tracks.ai?.progress?.percent ?? 0,
-          hint: "14 groups · foundations → production",
+          hint: `14 groups · foundations → production${paceHint(tracks.ai?.pace)}`,
         },
         {
           key: "swe", label: "Software Engineering", href: "/software-engineering", icon: "swe",
           done: tracks.swe?.progress?.done ?? 0, total: tracks.swe?.progress?.total ?? 0,
           percent: tracks.swe?.progress?.percent ?? 0,
-          hint: "15 groups · backend → system design",
+          hint: `15 groups · backend → system design${paceHint(tracks.swe?.pace)}`,
         },
         {
           key: "dsa", label: "DSA", href: "/dsa", icon: "dsa",
           done: tracks.dsa?.core100?.solved ?? 0, total: tracks.dsa?.core100?.total ?? 0,
           percent: tracks.dsa?.core100?.percent ?? 0,
-          hint: `Core 100 · ${tracks.dsa?.readiness?.label ?? ""}`,
+          hint: `Core 100 · ${tracks.dsa?.readiness?.label ?? ""}${paceHint(tracks.dsa?.pace)}`,
         },
       ];
       setRows(out);

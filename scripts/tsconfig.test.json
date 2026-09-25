@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["./mission-metrics.test.ts", "../src/lib/**/*.ts"]
+  "include": ["./mission-metrics.test.ts", "./curriculum-pacing.test.ts", "../src/lib/**/*.ts"]
 }

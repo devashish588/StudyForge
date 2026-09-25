@@ -43,6 +43,11 @@ model UserSettings {
   gateExamWindowStart  String @default("2027-02-06")
   gateExamWindowEnd    String @default("2027-02-21")
   gatePaperDate        String?
+  // Curriculum-completion planner: the single authoritative date by which all
+  // required (CORE + IMPORTANT) curriculum must complete. Drives per-track
+  // required-pace math in the planner, hubs, dashboard and Learn.
+  // GATE first-pass keeps its own exam-driven deadline above.
+  curriculumDeadline String @default("2026-12-31")
 }
 
 model StudyDay {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { todayStr, addDays, diffDays, PROGRAM_END_STR, GATE_SYLLABUS_DEADLINE_DEFAULT } from "@/lib/date";
+import { todayStr, addDays, diffDays, GATE_SYLLABUS_DEADLINE_DEFAULT, CURRICULUM_DEADLINE_DEFAULT } from "@/lib/date";
+import { ensureUser } from "@/lib/user";
+import { AI_PROJECT_RE } from "@/lib/curriculum";
 import {
   AI_GROUPS, SWE_GROUPS, DSA_PATTERNS, DISTRIBUTED_LINK_TITLES, groupStage,
   type HubGroupDef,
@@ -76,7 +78,7 @@ async function overallPace(): Promise<{ perDay: number }> {
   return { perDay: Math.round(total / 14) };
 }
 
-async function hubPayload(track: "AI_ENGINEERING" | "SOFTWARE_ENGINEERING", deadline: string) {
+async function hubPayload(track: "AI_ENGINEERING" | "SOFTWARE_ENGINEERING", deadline: string, projectMinutes = 0) {
   const tasks = (
     await prisma.roadmapTask.findMany({
       where: { track },
@@ -95,7 +97,9 @@ async function hubPayload(track: "AI_ENGINEERING" | "SOFTWARE_ENGINEERING", dead
   const counted = tasks.filter((t) => t.priority !== "OPTIONAL");
   const remaining = counted
     .filter((t) => !doneStatus(t.status))
-    .reduce((a, t) => a + Math.max(0, t.estMin - t.actMin), 0);
+    .reduce((a, t) => a + Math.max(0, t.estMin - t.actMin), 0)
+    // Portfolio milestones pace with their track (same split as mission risk).
+    + Math.max(0, projectMinutes);
   const daysLeft = Math.max(1, diffDays(todayStr(), deadline) + 1);
   const requiredPerDay = Math.round(remaining / daysLeft);
   const { perDay } = await overallPace();
@@ -119,7 +123,7 @@ async function hubPayload(track: "AI_ENGINEERING" | "SOFTWARE_ENGINEERING", dead
   };
 }
 
-async function dsaPayload() {
+async function dsaPayload(paceArgs?: { deadline: string; currentPerDay: number }) {
   const problems = await prisma.practiceProblem.findMany({
     where: { category: "DSA" },
     select: {
@@ -181,8 +185,20 @@ async function dsaPayload() {
   });
   const primersDone = primers.filter((t) => doneStatus(t.status)).length;
   const pct = problems.length ? Math.round((solved / problems.length) * 100) : 0;
+  const dsaRemaining = problems.filter((p) => !p.solved).reduce((a, p) => a + (p.timeMinutes || 15), 0);
+  // DSA pace uses the SAME required-pace convention as the AI/SWE hubs
+  // (deadline + overall proven pace supplied by the caller).
+  const paceDeadline = paceArgs?.deadline ?? CURRICULUM_DEADLINE_DEFAULT;
+  const paceCurrent = paceArgs?.currentPerDay ?? 0;
+  const dsaDaysLeft = Math.max(1, diffDays(todayStr(), paceDeadline) + 1);
+  const dsaRequired = Math.round(dsaRemaining / dsaDaysLeft);
   return {
     core100: { solved, attempted, total: problems.length, percent: pct, byDifficulty: byDiff },
+    pace: {
+      remainingMinutes: dsaRemaining, daysLeft: dsaDaysLeft, requiredPerDay: dsaRequired,
+      currentPerDay: paceCurrent, deadline: paceDeadline,
+      status: paceCurrent <= 0 ? "not-started" : dsaRequired <= paceCurrent ? "on-track" : "behind",
+    },
     patterns,
     currentPattern: currentPattern
       ? { key: currentPattern.key, label: currentPattern.label, nextUp: firstUnsolved?.title ?? null }
@@ -237,23 +253,75 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const which = url.searchParams.get("track") ?? "all";
+    // Single authoritative curriculum target (skills tracks pace against it).
+    const user = await ensureUser().catch(() => null);
+    const curriculumDeadline =
+      (user?.settings as { curriculumDeadline?: string } | null)?.curriculumDeadline
+      || CURRICULUM_DEADLINE_DEFAULT;
+    const syllabusDeadline =
+      user?.settings?.gateSyllabusDeadline || GATE_SYLLABUS_DEADLINE_DEFAULT;
+    const { perDay } = await overallPace();
+    // Portfolio milestones pace with their track (same split as mission risk).
+    let aiProj = 0, sweProj = 0;
+    try {
+      const projTasks = await prisma.projectTask.findMany({
+        where: { completed: false, priority: { not: "OPTIONAL" } },
+        select: { title: true, estimatedMinutes: true, project: { select: { name: true } } },
+      });
+      for (const t of projTasks) {
+        const mins = Math.max(0, t.estimatedMinutes ?? 60);
+        if (AI_PROJECT_RE.test(`${t.project.name} ${t.title}`)) aiProj += mins;
+        else sweProj += mins;
+      }
+    } catch { /* projects optional for pace — hubs still serve */ }
     const out: Record<string, unknown> = {};
     if (which === "all" || which === "ai") {
-      out.ai = await hubPayload("AI_ENGINEERING", PROGRAM_END_STR);
+      out.ai = await hubPayload("AI_ENGINEERING", curriculumDeadline, aiProj);
     }
     if (which === "all" || which === "swe") {
-      out.swe = await hubPayload("SOFTWARE_ENGINEERING", PROGRAM_END_STR);
+      out.swe = await hubPayload("SOFTWARE_ENGINEERING", curriculumDeadline, sweProj);
     }
     if (which === "all" || which === "dsa") {
-      out.dsa = await dsaPayload();
+      out.dsa = await dsaPayload({ deadline: curriculumDeadline, currentPerDay: perDay });
     }
     if (which === "all" || which === "links") {
       out.links = await linksPayload();
     }
-    out.deadlines = { roadmap: PROGRAM_END_STR, gateSyllabus: GATE_SYLLABUS_DEADLINE_DEFAULT };
+    if (which === "all" || which === "gate") {
+      out.gatePace = await gatePace(syllabusDeadline, perDay);
+    }
+    out.deadlines = { roadmap: curriculumDeadline, gateSyllabus: syllabusDeadline };
     return NextResponse.json(out);
   } catch (e) {
     console.error("Tracks API error:", e);
     return NextResponse.json({ error: "Failed to load track data" }, { status: 500 });
   }
+}
+
+async function gatePace(syllabusDeadline: string, currentPerDay: number) {
+  // GATE first-pass pace: required CORE+IMPORTANT topic minutes per day,
+  // plus GATE_PREP exam-prep tasks (same definition as the mission outlook).
+  const topics = await prisma.gateTopic.findMany({
+    select: { completed: true, estimatedMinutes: true, priority: true },
+  });
+  const prepTasks = await prisma.roadmapTask.findMany({
+    where: { track: "GATE_PREP", status: { notIn: ["COMPLETED", "PRACTICE"] }, priority: { not: "OPTIONAL" } },
+    select: { estimatedTimeMinutes: true, actualMinutes: true },
+  });
+  const done = topics.filter((t) => t.completed).length;
+  let remaining = 0;
+  for (const t of topics) {
+    if (t.completed || t.priority === "OPTIONAL") continue;
+    remaining += Math.max(0, t.estimatedMinutes ?? 90);
+  }
+  remaining += prepTasks.reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+  const daysLeft = Math.max(1, diffDays(todayStr(), syllabusDeadline) + 1);
+  const requiredPerDay = Math.round(remaining / daysLeft);
+  return {
+    done, total: topics.length,
+    percent: topics.length ? Math.round((done / topics.length) * 100) : 0,
+    remainingMinutes: remaining, daysLeft, requiredPerDay,
+    currentPerDay, deadline: syllabusDeadline,
+    status: currentPerDay <= 0 ? "not-started" : requiredPerDay <= currentPerDay ? "on-track" : "behind",
+  };
 }

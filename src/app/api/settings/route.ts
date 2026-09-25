@@ -51,7 +51,7 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { dailyTargetHours, dailyTargetMinutes, stretchTargetMinutes, schedulingMode, notifyReminders, preferredSittings, gateAllocation, roadmapAllocation, revisionAllocation, practiceAllocation, gateSyllabusDeadline, gateExamWindowStart, gateExamWindowEnd, gatePaperDate } = body;
+    const { dailyTargetHours, dailyTargetMinutes, stretchTargetMinutes, schedulingMode, notifyReminders, preferredSittings, gateAllocation, roadmapAllocation, revisionAllocation, practiceAllocation, gateSyllabusDeadline, gateExamWindowStart, gateExamWindowEnd, gatePaperDate, curriculumDeadline } = body;
 
     // Bootstrap row is guaranteed to exist, so saves always persist
     // (previously a silent no-op on databases where seed never ran).
@@ -86,6 +86,7 @@ export async function PATCH(req: Request) {
           ...(gateExamWindowStart !== undefined && { gateExamWindowStart: String(gateExamWindowStart) }),
           ...(gateExamWindowEnd !== undefined && { gateExamWindowEnd: String(gateExamWindowEnd) }),
           ...(gatePaperDate !== undefined && { gatePaperDate: gatePaperDate ? String(gatePaperDate) : null }),
+          ...(curriculumDeadline !== undefined && { curriculumDeadline: String(curriculumDeadline) }),
         }
       });
     }

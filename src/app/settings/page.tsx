@@ -15,6 +15,7 @@ export default function SettingsPage() {
   const [notify, setNotify] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [syllabusDeadline, setSyllabusDeadline] = useState("2027-01-15");
+  const [curriculumDeadline, setCurriculumDeadline] = useState("2026-12-31");
   const [paperDate, setPaperDate] = useState("");
   const [testMode, setTestMode] = useState(false);
   const [testDay, setTestDay] = useState<number | null>(null);
@@ -40,6 +41,7 @@ export default function SettingsPage() {
           if (s.roadmapAllocation) setRoadmapPct(s.roadmapAllocation * 100);
           if (s.revisionAllocation) setRevisionPct(s.revisionAllocation * 100);
           if (s.gateSyllabusDeadline) setSyllabusDeadline(s.gateSyllabusDeadline);
+          if (s.curriculumDeadline) setCurriculumDeadline(s.curriculumDeadline);
           if (s.gatePaperDate) setPaperDate(s.gatePaperDate);
         }
       });
@@ -62,6 +64,7 @@ export default function SettingsPage() {
           practiceAllocation: Math.max(0, 1 - gatePct / 100 - roadmapPct / 100 - revisionPct / 100),
           notifyReminders: notify,
           gateSyllabusDeadline: syllabusDeadline || "2027-01-15",
+          curriculumDeadline: curriculumDeadline || "2026-12-31",
           gatePaperDate: paperDate || null,
         })
       });
@@ -179,6 +182,19 @@ export default function SettingsPage() {
             </div>
           </div>
           <p className="text-[11px] text-gray-500">GATE planning defaults (35–40% GATE / 35–40% Roadmap / 10–15% Practice / 10–15% Revision). You can override per day. Revision intervals stay at 1 / 7 / 21 / 45 days.</p>
+
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 space-y-4">
+            <div>
+              <p className="text-xs font-bold text-emerald-300">Curriculum target date (one authoritative deadline)</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-gray-400">
+                All required curriculum must complete by this date. Drives per-track required pace
+                across planner, hubs, dashboard and Learn. GATE first-pass keeps its own exam deadline below.
+              </p>
+              <input type="date" value={curriculumDeadline} min="2026-09-24" max="2027-03-31"
+                onChange={(e) => setCurriculumDeadline(e.target.value)}
+                className="mt-2 w-full sm:w-auto bg-border/30 border border-border rounded-xl px-3 py-2.5 text-xs text-card-foreground focus:outline-none focus:border-accent" />
+            </div>
+          </div>
 
           <div className="rounded-xl border border-purple-500/25 bg-purple-500/5 p-4 space-y-4">
             <div>

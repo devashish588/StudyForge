@@ -211,6 +211,8 @@ export interface EngineSettings {
   examWindowStart: string;
   examWindowEnd: string;
   paperDate: string | null;
+  /** Single authoritative curriculum-completion target date (skills tracks). */
+  curriculumDeadline: string;
 }
 
 export interface EngineInput {
@@ -233,13 +235,17 @@ export interface EngineInput {
   prevFeedback?: string | null;
   /** Unsolved practice-bank remainder (Core 100) — counted in feasibility. */
   practiceRemainingMinutes?: number;
-  /** 7-day rolling adaptation snapshot (spec §25/§27). Filled by route. */
+  /** Practice-bank completion counts (Core 100 solved/total). Filled by route. */
+  practiceSolved?: number;
+  practiceTotal?: number;
+  /** 7-day rolling adaptation snapshot (spec §25/§27). Filled by route.
+      sustainablePerDay is null until real study days exist (unknown, never 0). */
   adaptation?: {
     plannedMinutes: number;
     actualMinutes: number;
     completionRate: number;
     carryOverMinutes: number;
-    sustainablePerDay: number;
+    sustainablePerDay: number | null;
   };
 }
 

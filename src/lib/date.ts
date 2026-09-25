@@ -133,6 +133,9 @@ export function isDemoDay(day: { notes?: string | null; title?: string | null })
 
 /** User planning deadline for first-pass GATE syllabus (NOT an official date). */
 export const GATE_SYLLABUS_DEADLINE_DEFAULT = "2027-01-15";
+/** Single authoritative curriculum-completion target (skills curriculum must
+    finish by this date). User-configurable via settings; default = Dec 31. */
+export const CURRICULUM_DEADLINE_DEFAULT = "2026-12-31";
 /** Official GATE 2027 examination window (IIT Madras), subject to change. */
 export const GATE_EXAM_WINDOW_START_DEFAULT = "2027-02-06";
 export const GATE_EXAM_WINDOW_END_DEFAULT = "2027-02-21";

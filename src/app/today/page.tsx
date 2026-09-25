@@ -274,6 +274,33 @@ export default function TodayPage() {
           <ProgressBar value={completedPct} label="Today's completed share of target" heightClass="h-2" />
         </div>
         <p className="type-metadata mt-2">Goals: {goalsDone} / {goals.length} complete</p>
+        {mission?.curriculum && (
+          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 px-4 py-3" aria-label="Curriculum progress">
+            <p className="type-label">Curriculum target — finish by {mission.curriculum.targetDate}</p>
+            <p className="mt-1 text-[13px] text-gray-300">
+              {mission.curriculum.daysLeft} days left · {mission.curriculum.overall.percent}% complete
+              ({minutesToHM(mission.curriculum.overall.remainingMinutes)} remaining)
+            </p>
+            <p className="mt-0.5 text-[13px] text-gray-300">
+              Required pace: <b className="text-white">{minutesToHM(mission.curriculum.overall.requiredPerDay)}/day</b>
+              {mission.curriculum.overall.status !== "ON_TRACK" && (
+                <span className={mission.curriculum.overall.status === "OVERLOAD" ? "font-bold text-rose-300" : "font-bold text-amber-300"}>
+                  {" "}· {mission.curriculum.overall.status === "OVERLOAD" ? "Overload" : "At risk"}
+                </span>
+              )}
+            </p>
+            {(() => {
+              const normal = mission.journey?.targetMinutes ?? 360;
+              const stretch = mission.journey?.stretchMinutes ?? 480;
+              const good = Math.round((normal + stretch) / 2);
+              return (
+                <p className="type-metadata mt-1">
+                  {minutesToHM(normal)} normal · {minutesToHM(good)} good pace · {minutesToHM(stretch)} stretch
+                </p>
+              );
+            })()}
+          </div>
+        )}
       </header>
 
       {notice && (

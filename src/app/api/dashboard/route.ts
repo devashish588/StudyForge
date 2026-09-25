@@ -6,8 +6,10 @@ import {
   getProgramDay, getDaysRemaining, getProgramStatus, isDemoDay,
   getStudyPhase, formatCountdown, daysUntil,
   GATE_SYLLABUS_DEADLINE_DEFAULT, GATE_EXAM_WINDOW_START_DEFAULT, GATE_EXAM_WINDOW_END_DEFAULT,
+  CURRICULUM_DEADLINE_DEFAULT,
 } from "@/lib/date";
 import { calculateStreak, computeCoreDayPure, generatePlan } from "@/lib/study";
+import { buildCurriculumOutlook, AI_PROJECT_RE } from "@/lib/curriculum";
 import { ensureUser } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
@@ -89,7 +91,7 @@ export async function GET(req: Request) {
     const backlogItems = await prisma.backlogItem.findMany({ where: { status: "PENDING" } });
 
     // 7. Roadmap progress
-    const allRoadmapTasks = await prisma.roadmapTask.findMany({ select: { status: true, category: true } });
+    const allRoadmapTasks = await prisma.roadmapTask.findMany({ select: { status: true, category: true, track: true, priority: true, estimatedTimeMinutes: true, actualMinutes: true } });
     const completedRoadmap = allRoadmapTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
     const roadmapPercent = allRoadmapTasks.length > 0 ? Math.round((completedRoadmap / allRoadmapTasks.length) * 100) : 0;
     const roadmapByCategory: Record<string, { total: number; done: number }> = {};
@@ -99,7 +101,7 @@ export async function GET(req: Request) {
       if (t.status === "COMPLETED" || t.status === "PRACTICE") roadmapByCategory[t.category].done++;
     }
 
-    const allProblems = await prisma.practiceProblem.findMany({ select: { solved: true } });
+    const allProblems = await prisma.practiceProblem.findMany({ select: { solved: true, timeMinutes: true } });
     const solvedProblems = allProblems.filter((p) => p.solved).length;
 
     // 8. Streak from source data (StudyDay history).
@@ -234,9 +236,11 @@ export async function GET(req: Request) {
     const aiDone = aiTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
     const sweTasks = allRoadmapTasks.filter((t) => !AI_CATS.includes(t.category));
     const sweDone = sweTasks.filter((t) => t.status === "COMPLETED" || t.status === "PRACTICE").length;
-    const gateTopics = await prisma.gateTopic.findMany({ select: { completed: true } });
+    const gateTopics = await prisma.gateTopic.findMany({ select: { completed: true, estimatedMinutes: true, priority: true } });
     const gateDone = gateTopics.filter((t) => t.completed).length;
     const completedDays = activeDays.filter((d) => d.actualMinutes >= 180).length;
+    // Single authoritative curriculum target (skills tracks pace against it).
+    const curriculumDeadline = (st as { curriculumDeadline?: string } | undefined)?.curriculumDeadline || CURRICULUM_DEADLINE_DEFAULT;
     const journey = {
       completedDays,
       totalDays: PROGRAM_TOTAL_DAYS,
@@ -244,13 +248,13 @@ export async function GET(req: Request) {
       aiPercent: aiTasks.length ? Math.round((aiDone / aiTasks.length) * 100) : 0,
       swePercent: sweTasks.length ? Math.round((sweDone / sweTasks.length) * 100) : 0,
       gateFirstPassPercent: gateTopics.length ? Math.round((gateDone / gateTopics.length) * 100) : 0,
-      roadmapDeadline: PROGRAM_END_STR,
+      roadmapDeadline: curriculumDeadline,
       gateDeadline: syllabusDeadline,
     };
 
     const remainingRoadmap = await prisma.roadmapTask.findMany({
       where: { status: { notIn: ["COMPLETED", "PRACTICE"] }, priority: { not: "OPTIONAL" } },
-      select: { estimatedTimeMinutes: true, actualMinutes: true },
+      select: { estimatedTimeMinutes: true, actualMinutes: true, track: true, category: true, title: true },
     });
     const remainingGate = await prisma.gateTopic.findMany({
       where: { completed: false, priority: { not: "OPTIONAL" } },
@@ -258,7 +262,7 @@ export async function GET(req: Request) {
     });
     const remainingProjects = await prisma.projectTask.findMany({
       where: { completed: false, priority: { not: "OPTIONAL" } },
-      select: { estimatedMinutes: true },
+      select: { estimatedMinutes: true, title: true, project: { select: { name: true } } },
     });
     const remainingPractice = await prisma.practiceProblem.findMany({
       where: { solved: false },
@@ -284,6 +288,60 @@ export async function GET(req: Request) {
       daysLeft: daysLeftNum,
       horizon: syllabusDeadline,
     };
+
+    // Curriculum-completion outlook per track (same required-pace math as the
+    // planner bridge and Learn; zero extra queries — rows already loaded).
+    // GATE_PREP exam-prep tasks pace with the GATE track everywhere.
+    const isDoneTask = (s: string) => s === "COMPLETED" || s === "PRACTICE";
+    const aiRows = allRoadmapTasks.filter((t) => t.track === "AI_ENGINEERING");
+    const sweRows = allRoadmapTasks.filter((t) => t.track === "SOFTWARE_ENGINEERING");
+    const gatePrepMin = remainingRoadmap
+      .filter((t) => (t as { track?: string }).track === "GATE_PREP")
+      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+    const aiTaskMin = remainingRoadmap
+      .filter((t) => t.track === "AI_ENGINEERING")
+      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+    const sweTaskMin = remainingRoadmap
+      .filter((t) => t.track === "SOFTWARE_ENGINEERING")
+      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+    let aiProjMin = 0, sweProjMin = 0;
+    for (const t of remainingProjects) {
+      const mins = Math.max(0, t.estimatedMinutes ?? 60);
+      if (AI_PROJECT_RE.test(`${t.project.name} ${t.title}`)) aiProjMin += mins;
+      else sweProjMin += mins;
+    }
+    const curriculum = buildCurriculumOutlook(
+      today,
+      curriculumDeadline,
+      [
+        {
+          key: "gate", label: "GATE",
+          done: gateDone, total: gateTopics.length,
+          remainingMinutes: gateTopics.filter((t) => !t.completed && t.priority !== "OPTIONAL").reduce((a, t) => a + (t.estimatedMinutes ?? 90), 0) + gatePrepMin,
+          deadline: syllabusDeadline,
+        },
+        {
+          key: "ai", label: "AI Engineering",
+          done: aiRows.filter((t) => isDoneTask(t.status)).length, total: aiRows.length,
+          remainingMinutes: aiTaskMin + aiProjMin, deadline: curriculumDeadline,
+        },
+        {
+          key: "swe", label: "Software Engineering",
+          done: sweRows.filter((t) => isDoneTask(t.status)).length, total: sweRows.length,
+          remainingMinutes: sweTaskMin + sweProjMin, deadline: curriculumDeadline,
+        },
+        {
+          key: "dsa", label: "DSA",
+          done: solvedProblems, total: allProblems.length,
+          remainingMinutes: allProblems.filter((p) => !p.solved).reduce((a, p) => a + (p.timeMinutes || 15), 0),
+          deadline: curriculumDeadline,
+        },
+      ],
+      last7Actual.length > 0 ? currentPerDay : null, targetMinutes,
+      { gate: 0.375, ai: 0.375, swe: 0.25, dsa: 0.25 },
+      last7Actual.length > 0,
+      studyDay.stretchMinutes ?? 480
+    );
 
     return NextResponse.json({
       user: user ? { ...user, currentStreak: streak.current, longestStreak: Math.max(streak.longest, user.longestStreak) } : null,
@@ -315,6 +373,7 @@ export async function GET(req: Request) {
       carryNotice,
       journey,
       schedule,
+      curriculum,
       monthly: {
         roadmapPercent,
         gatePercent,

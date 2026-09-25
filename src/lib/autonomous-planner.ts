@@ -70,8 +70,10 @@ export interface ScheduleRisk {
   totalRemainingMinutes: number;
   availableMinutes: number;
   requiredPerDay: number;
-  sustainablePerDay: number;
-  gapPerDay: number;
+  /** Measured pace, or null when no history exists yet (unknown, never 0). */
+  sustainablePerDay: number | null;
+  /** Null when sustainable pace is unknown (no gap can be computed). */
+  gapPerDay: number | null;
   message: string;
   recovery: string[];
   /** OPTIONAL-tier remainder: spare-capacity only, never in the required pace. */
@@ -346,8 +348,11 @@ export function buildMission(candidates: WorkCandidate[], ctx: PlannerContext): 
 export function computeScheduleRisk(args: {
   remainingByTrack: Record<Track, number>;
   daysLeft: number;
-  sustainablePerDay: number;
+  /** Measured pace, or null when no history exists yet (unknown, never 0). */
+  sustainablePerDay: number | null;
   capacityPerDay: number;
+  /** Stretch pace for the no-history band rule (defaults to capacity). */
+  stretchPerDay?: number;
   /** OPTIONAL-tier remainder (informational — excluded from required pace). */
   optionalMinutes?: number;
   horizonDate?: string;
@@ -355,13 +360,21 @@ export function computeScheduleRisk(args: {
   const total = Object.values(args.remainingByTrack).reduce((a, b) => a + b, 0);
   const denom = Math.max(1, args.daysLeft);
   const required = total / denom;
-  const gap = required - args.sustainablePerDay;
-  const status = gap <= 0 ? "ON_TRACK" : required > args.capacityPerDay ? "OVERLOAD" : "AT_RISK";
+  const known = args.sustainablePerDay != null;
+  const gap = known ? required - (args.sustainablePerDay as number) : null;
+  const stretch = args.stretchPerDay ?? args.capacityPerDay;
+  const good = Math.round((args.capacityPerDay + stretch) / 2);
+  const status =
+    gap == null
+      ? required <= args.capacityPerDay ? "ON_TRACK" : required <= stretch ? "AT_RISK" : "OVERLOAD"
+      : gap <= 0 ? "ON_TRACK" : required > args.capacityPerDay ? "OVERLOAD" : "AT_RISK";
   const fmt = (m: number) => `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
   const message =
     status === "ON_TRACK"
       ? `On track — ${fmt(total)} over ${denom}d needs ${fmt(required)}/day.`
-      : `Schedule risk detected — needs ${fmt(required)}/day, sustainable pace is ${fmt(args.sustainablePerDay)}/day (gap ${fmt(Math.abs(gap))}/day).`;
+      : gap == null
+        ? `No history yet — ${fmt(required)}/day required · normal ${fmt(args.capacityPerDay)} · good pace ${fmt(good)} · stretch ${fmt(stretch)}.`
+        : `Schedule risk detected — needs ${fmt(required)}/day, sustainable pace is ${fmt(args.sustainablePerDay as number)}/day (gap ${fmt(Math.abs(gap))}/day).`;
   const recovery =
     status === "ON_TRACK"
       ? []
@@ -373,8 +386,9 @@ export function computeScheduleRisk(args: {
         ];
   return {
     status, totalRemainingMinutes: Math.round(total), availableMinutes: Math.round(denom * args.capacityPerDay),
-    requiredPerDay: Math.round(required), sustainablePerDay: Math.round(args.sustainablePerDay),
-    gapPerDay: Math.round(gap), message, recovery,
+    requiredPerDay: Math.round(required),
+    sustainablePerDay: known ? Math.round(args.sustainablePerDay as number) : null,
+    gapPerDay: gap == null ? null : Math.round(gap), message, recovery,
     optionalMinutes: Math.round(args.optionalMinutes ?? 0),
     horizonDate: args.horizonDate,
   };

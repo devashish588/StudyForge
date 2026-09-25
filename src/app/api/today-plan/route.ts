@@ -4,6 +4,7 @@ import {
   todayStr, addDays, diffDays, toDateStr,
   PROGRAM_START_STR, PROGRAM_END_STR,
   GATE_SYLLABUS_DEADLINE_DEFAULT, GATE_EXAM_WINDOW_START_DEFAULT, GATE_EXAM_WINDOW_END_DEFAULT,
+  CURRICULUM_DEADLINE_DEFAULT,
   isDemoDay,
 } from "@/lib/date";
 import { calculateStreak, type FocusPriority } from "@/lib/study";
@@ -53,6 +54,7 @@ async function getSettings() {
     practiceAllocation: s?.practiceAllocation ?? 0.125,
     revisionAllocation: s?.revisionAllocation ?? 0.125,
     syllabusDeadline: s?.gateSyllabusDeadline || GATE_SYLLABUS_DEADLINE_DEFAULT,
+    curriculumDeadline: (s as { curriculumDeadline?: string } | undefined)?.curriculumDeadline || CURRICULUM_DEADLINE_DEFAULT,
     examWindowStart: s?.gateExamWindowStart || GATE_EXAM_WINDOW_START_DEFAULT,
     examWindowEnd: s?.gateExamWindowEnd || GATE_EXAM_WINDOW_END_DEFAULT,
     paperDate: s?.gatePaperDate || null,
@@ -301,7 +303,7 @@ async function buildEngineInput(
     actualMinutes: weekActual,
     completionRate: weekTotal ? Math.round((weekDone / weekTotal) * 100) : 0,
     carryOverMinutes: weekCarry,
-    sustainablePerDay: weekDays.length ? Math.round(weekActual / Math.max(1, weekDays.length)) : 0,
+    sustainablePerDay: weekActual > 0 ? Math.round(weekActual / Math.max(1, weekDays.length)) : null,
   };
 
   const days = await prisma.studyDay.findMany({
@@ -310,12 +312,12 @@ async function buildEngineInput(
     orderBy: { date: "asc" },
   });
 
-  // Unsolved practice-bank remainder (Core 100) for honest feasibility math.
-  const unsolvedPractice = await prisma.practiceProblem.findMany({
-    where: { solved: false },
-    select: { timeMinutes: true },
-  });
-  const practiceRemainingMinutes = unsolvedPractice.reduce((a, q) => a + (q.timeMinutes || 15), 0);
+  // Unsolved practice-bank remainder (Core 100) for honest feasibility math,
+  // plus solved/total counts for the curriculum outlook.
+  const practiceBank = await prisma.practiceProblem.findMany({ select: { solved: true, timeMinutes: true } });
+  const practiceRemainingMinutes = practiceBank.filter((q) => !q.solved).reduce((a, q) => a + (q.timeMinutes || 15), 0);
+  const practiceSolvedCount = practiceBank.filter((q) => q.solved).length;
+  const practiceTotalCount = practiceBank.length;
 
   const availableMinutes = opts.availableMinutes ?? day.availableMinutes ?? day.targetMinutes ?? 360;
   const priorityMode = (opts.priorityMode ?? day.focusPriority ?? "Balanced") as FocusPriority;
@@ -342,6 +344,8 @@ async function buildEngineInput(
       prevFeedback: opts.prevFeedback ?? prevFeedback,
       adaptation,
       practiceRemainingMinutes,
+      practiceSolved: practiceSolvedCount,
+      practiceTotal: practiceTotalCount,
     },
   };
 }
