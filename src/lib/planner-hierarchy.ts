@@ -300,7 +300,7 @@ export function buildWeeklyPlans(args: {
   const weeks: WeekPlan[] = [];
   let monday = mondayOf(args.fromDate);
   const horizon = args.curriculumDeadline;
-  for (let w = 0; w < 10; w++) {
+  for (let w = 0; w < 20; w++) {
     const weekStart = monday;
     const weekEnd = addDays(weekStart, 6);
     if (weekStart > horizon) break;
@@ -362,7 +362,7 @@ export function buildWeeklyPlans(args: {
       status: "ON_TRACK",
     });
     monday = addDays(monday, 7);
-    if (weeks.length >= 8) break;
+    if (weeks.length >= 16) break;
   }
   return weeks;
 }

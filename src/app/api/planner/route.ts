@@ -158,6 +158,60 @@ export async function GET(req: Request) {
         dailyTargetMinutes: dayTarget,
         curriculum,
       });
+      // Enrich the first (displayed) week with actual per-day goals.
+      // Past days: actual StudyDay completion. Today/future: preview mission.
+      // Uses the same planner kernel via /api/today-plan preview to avoid duplicating logic.
+      const firstWeek = weeks[0];
+      if (firstWeek) {
+        const base = `${url.protocol}//${url.host}`;
+        const todayS = todayStr();
+        const enrichedDays = await Promise.all(
+          firstWeek.days.map(async (d) => {
+            try {
+              if (d.isPast) {
+                const sd = await prisma.studyDay.findUnique({ where: { date: d.date }, select: { actualMinutes: true, mustDoJson: true, shouldDoJson: true, couldDoJson: true } });
+                const items = sd ? [...JSON.parse(sd.mustDoJson || "[]"), ...JSON.parse(sd.shouldDoJson || "[]"), ...JSON.parse(sd.couldDoJson || "[]")] : [];
+                const done = items.filter((i: { done: boolean }) => i.done).length;
+                const total = items.length;
+                return {
+                  ...d,
+                  actualMinutes: sd?.actualMinutes ?? 0,
+                  completionPercent: total ? Math.round((done / total) * 100) : 0,
+                  goals: items.slice(0, 5).map((i: { title: string; done: boolean }) => ({ title: i.title, done: i.done })),
+                };
+              }
+              const tp = await fetch(`${base}/api/today-plan?date=${d.date}&preview=1`, { cache: "no-store" }).then((r) => r.json());
+              const m = tp.mission;
+              if (!m) return { ...d, goals: [] };
+              const fitted = [...(m.carryOver ?? []), ...(m.easyStart ?? []), ...(m.hardDeepWork ?? []), ...(m.easyApply ?? []), ...(m.recall ?? [])].filter((i: { fitted?: boolean }) => i.fitted === true);
+              // Group fitted items into goals like Today does
+              const byKey = new Map<string, { eyebrow: string; title: string; subs: { title: string; done: boolean }[] }>();
+              for (const it of fitted) {
+                const detail: string = (it as { detail?: string }).detail || "";
+                const dot = detail.indexOf("·");
+                const cat = dot >= 0 ? detail.slice(0, dot).trim() : "";
+                const key = (it as { subjectName?: string }).subjectName ? `GATE:${(it as { subjectName?: string }).subjectName}` : `ROADMAP:${cat || "Roadmap"}`;
+                if (!byKey.has(key)) {
+                  const rest = dot >= 0 ? detail.slice(dot + 1).trim().split("—")[0]?.trim() : "";
+                  byKey.set(key, { eyebrow: key.split(":")[0] === "GATE" ? "GATE" : (cat || "Roadmap").toUpperCase(), title: rest || key.split(":")[1] || "Roadmap", subs: [] });
+                }
+                byKey.get(key)!.subs.push({ title: it.title, done: it.done });
+              }
+              const goals = Array.from(byKey.values()).map((g) => ({
+                eyebrow: g.eyebrow,
+                title: g.title,
+                subs: g.subs.slice(0, 4),
+                doneCount: g.subs.filter((s) => s.done).length,
+                totalCount: g.subs.length,
+              }));
+              return { ...d, goals, plannedMinutes: m.totalPlannedMinutes ?? d.plannedMinutes, overflowMinutes: m.overflowMinutes ?? 0 };
+            } catch {
+              return { ...d, goals: [] };
+            }
+          })
+        );
+        firstWeek.days = enrichedDays as unknown as typeof firstWeek.days;
+      }
       return NextResponse.json({ date, mode: "week" as const, weeks, target, capacity: dayTarget, stretch, curriculum });
     }
 
@@ -170,7 +224,25 @@ export async function GET(req: Request) {
       dailyTargetMinutes: dayTarget,
       curriculum,
     });
-    return NextResponse.json({ date, mode: "month" as const, months, target, capacity: dayTarget, stretch, curriculum });
+    // Attach week-level breakdown to each month (for the strategic → weekly hierarchy)
+    const allWeeks = buildWeeklyPlans({
+      fromDate: date,
+      curriculumDeadline: target,
+      inventory,
+      dailyTargetMinutes: dayTarget,
+      curriculum,
+    });
+    const monthsWithWeeks = months.map((m) => ({
+      ...m,
+      weeks: allWeeks.filter((w) => w.weekStart <= m.monthEnd && w.weekEnd >= m.monthStart).map((w) => ({
+        weekLabel: w.weekLabel,
+        weekStart: w.weekStart,
+        weekEnd: w.weekEnd,
+        milestone: w.milestone,
+        targetMinutes: w.targetMinutes,
+      })),
+    }));
+    return NextResponse.json({ date, mode: "month" as const, months: monthsWithWeeks, target, capacity: dayTarget, stretch, curriculum });
   } catch (e) {
     console.error("Planner API error:", e);
     return NextResponse.json({ error: "Failed to load planner" }, { status: 500 });

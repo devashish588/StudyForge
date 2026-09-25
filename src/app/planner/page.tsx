@@ -208,7 +208,7 @@ function DayView({ data, date }: { data: PlannerDay & { mission?: PlannerDay["mi
   );
 }
 
-function WeekView({ data }: { data: { weeks: { weekLabel: string; weekStart: string; weekEnd: string; days: { date: string; isToday: boolean; targetMinutes: number; plannedMinutes: number }[]; targetMinutes: number; trackMinutes: Record<string, number>; milestone: string; status: string }[] } }) {
+function WeekView({ data }: { data: { weeks: { weekLabel: string; weekStart: string; weekEnd: string; days: { date: string; isToday: boolean; isPast: boolean; targetMinutes: number; plannedMinutes: number; actualMinutes?: number; completionPercent?: number; goals?: { eyebrow: string; title: string; subs: { title: string; done: boolean }[]; doneCount: number; totalCount: number }[] }[]; targetMinutes: number; trackMinutes: Record<string, number>; milestone: string; status: string }[] } }) {
   const weeks = data.weeks ?? [];
   const current = weeks[0];
   if (!current) return <p className="text-sm text-gray-500">No weekly plan available.</p>;
@@ -222,18 +222,44 @@ function WeekView({ data }: { data: { weeks: { weekLabel: string; weekStart: str
           <p className="mt-1 text-xs text-gray-500">Curriculum { (current as unknown as { curriculum: { overall: { percent: number } } }).curriculum.overall.percent}% · {minutesToHM((current as unknown as { curriculum: { overall: { remainingMinutes: number } } }).curriculum.overall.remainingMinutes)} remaining · {minutesToHM((current as unknown as { curriculum: { overall: { requiredPerDay: number } } }).curriculum.overall.requiredPerDay)}/day required</p>
         )}
       </section>
-      <PlainSection title="7-day schedule">
-        <div className="grid gap-2 sm:grid-cols-7">
-          {current.days.map((d) => (
-            <Link key={d.date} href={`/planner?date=${d.date}`}
-              className={cn("rounded-xl border p-3 text-center", d.isToday ? "border-accent bg-accent/10" : "border-border bg-card hover:border-border/60")}>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{d.date.slice(5)}</p>
-              <p className={cn("mt-1 font-mono text-xs", d.isToday ? "font-bold text-white" : "text-gray-300")}>{minutesToHM(d.plannedMinutes)}</p>
-              {d.isToday && <span className="mt-1 inline-block rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">TODAY</span>}
-            </Link>
-          ))}
+      <PlainSection title="7-day schedule — actual goals per day">
+        <div className="space-y-3">
+          {current.days.map((d) => {
+            const dayGoals = (d as { goals?: { eyebrow: string; title: string; subs: { title: string; done: boolean }[] }[] }).goals ?? [];
+            const isPast = (d as { isPast?: boolean }).isPast;
+            const isToday = (d as { isToday?: boolean }).isToday;
+            return (
+              <div key={d.date} className={cn("rounded-xl border p-4", isToday ? "border-accent bg-accent/5" : isPast ? "border-border/50 bg-card/50 opacity-80" : "border-border bg-card")}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-bold text-white">{new Date(d.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} {isToday && <span className="ml-2 rounded bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">TODAY</span>}</p>
+                  <p className="font-mono text-xs text-gray-500">{minutesToHM(d.plannedMinutes)} planned{(d as { actualMinutes?: number }).actualMinutes ? ` · ${minutesToHM((d as { actualMinutes?: number }).actualMinutes as number)} actual` : ""}</p>
+                </div>
+                {dayGoals.length === 0 ? (
+                  <p className="mt-2 text-xs text-gray-500">{isPast ? "Rest / no plan — completion counted." : "No fitted goals — capacity reserved."}</p>
+                ) : (
+                  <ul className="mt-2 space-y-2">
+                    {dayGoals.slice(0, 4).map((g) => (
+                      <li key={g.eyebrow + g.title} className="rounded-lg border border-border/50 bg-border/10 px-3 py-2">
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">{g.eyebrow} — {g.title}</p>
+                        <ul className="mt-1 space-y-0.5">
+                          {g.subs.slice(0, 3).map((s) => (
+                            <li key={s.title} className="flex items-center gap-1.5 text-xs">
+                              <span className={s.done ? "text-emerald-400" : "text-gray-600"}>{s.done ? "☑" : "☐"}</span>
+                              <span className={s.done ? "text-gray-500 line-through" : "text-gray-300"}>{s.title}</span>
+                            </li>
+                          ))}
+                          {g.subs.length > 3 && <li className="text-[11px] text-gray-500">+{g.subs.length - 3} more</li>}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Link href={`/planner?date=${d.date}`} className="mt-2 inline-block text-xs font-bold text-accent hover:underline">Open day →</Link>
+              </div>
+            );
+          })}
         </div>
-        <p className="mt-2 text-xs text-gray-500">Tap any day to open its session schedule. Completed days fade from remaining curriculum; tomorrow is recalculated.</p>
+        <p className="mt-2 text-xs text-gray-500">Past days show actual completion; future days show generated plan. All derive from the same curriculum hierarchy.</p>
       </PlainSection>
       <PlainSection title="Track allocation this week">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -259,7 +285,7 @@ function WeekView({ data }: { data: { weeks: { weekLabel: string; weekStart: str
   );
 }
 
-function MonthView({ data }: { data: { months: { key: string; label: string; monthStart: string; monthEnd: string; daysInWindow: number; targetMinutes: number; plannedMinutes: number; percent: number; majorModules: { track: string; label: string; minutes: number }[]; milestone: string; status: string }[] } }) {
+function MonthView({ data }: { data: { months: { key: string; label: string; monthStart: string; monthEnd: string; daysInWindow: number; targetMinutes: number; plannedMinutes: number; percent: number; majorModules: { track: string; label: string; minutes: number }[]; milestone: string; status: string; weeks?: { weekLabel: string; weekStart: string; weekEnd: string; milestone: string; targetMinutes: number }[] }[] } }) {
   const months = data.months ?? [];
   if (months.length === 0) return <p className="text-sm text-gray-500">No monthly plan — check your curriculum deadline in Settings.</p>;
   return (
@@ -281,6 +307,17 @@ function MonthView({ data }: { data: { months: { key: string; label: string; mon
               </li>
             ))}
           </ul>
+          {(m as { weeks?: { weekLabel: string; weekStart: string; milestone: string }[] }).weeks && (m as { weeks?: { weekLabel: string; weekStart: string; milestone: string }[] }).weeks!.length > 0 && (
+            <div className="mt-3 space-y-1 border-t border-border/40 pt-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Weeks in {m.label}</p>
+              {(m as { weeks: { weekLabel: string; weekStart: string; milestone: string }[] }).weeks.map((w) => (
+                <div key={w.weekStart} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-mono text-gray-400">{w.weekLabel}</span>
+                  <span className="truncate text-gray-400">{w.milestone}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="mt-3 flex gap-2">
             <Link href={`/planner?date=${m.monthStart}`} className="text-xs font-bold text-accent hover:underline">Open month →</Link>
             <Link href="/print" className="text-xs text-gray-500 hover:text-gray-300">Print →</Link>
