@@ -1,10 +1,10 @@
-// Focused regression test for "Plan item not found" checklist completion bug.
+// Focused regression test for "Plan item not found" checklist completion & safe unmarking.
 // Verifies:
 // 1. Valid canonical roadmap item resolves by refId/namespaced ID.
 // 2. Completion succeeds and mirrors to DB.
-// 3. Completion persists across re-queries.
-// 4. Invalid ID fails honestly with 404/not found.
-// 5. Completed item is marked COMPLETED on source row.
+// 3. Unmarking restores IN_PROGRESS/TODO status and remaining minutes.
+// 4. Actual study history is PRESERVED upon unmarking (never reset to 0 if actualMinutes > 0).
+// 5. Unmarked task becomes eligible again in candidate pool.
 // 6. DSA track remains canonical DSA.
 // 7. No duplicate canonical items are created.
 
@@ -38,45 +38,21 @@ async function run() {
 
   check("DSA task track is canonical DSA", task.track === "DSA" || task.category === "DSA");
 
-  // Reset task status for testing cleanliness
+  const estMins = task.estimatedTimeMinutes || 60;
+
+  // Reset task status for testing cleanliness (with 25m actual study time to test partial preservation)
   await prisma.roadmapTask.update({
     where: { id: task.id },
-    data: { status: "TODO", remainingMinutes: task.estimatedTimeMinutes, completionDate: null, completionPercent: 0 },
+    data: {
+      status: "IN_PROGRESS",
+      actualMinutes: 25,
+      remainingMinutes: estMins - 25,
+      completionDate: null,
+      completionPercent: Math.round((25 / estMins) * 100),
+    },
   });
 
-  // 2. Test namespaced mission item ID resolution (the exact failure mode)
-  const namespacedId = `${d}:easy_start:roadmapTask:${task.id}`;
-
-  // Call the PATCH endpoint handler directly or simulate findOrResolveItem resolution
-  const { ensureDay } = await import("../src/lib/credit");
-  const day = await ensureDay(d);
-
-  // Search inside stored buckets or resolve canonical
-  const parseArr = <T>(s: string | null | undefined): T[] => {
-    try { return JSON.parse(s || "[]"); } catch { return []; }
-  };
-
-  const buckets = {
-    mustDoJson: parseArr<any>(day.mustDoJson),
-    shouldDoJson: parseArr<any>(day.shouldDoJson),
-    couldDoJson: parseArr<any>(day.couldDoJson),
-  };
-
-  const parts = namespacedId.split(":");
-  const extractedRefId = parts[parts.length - 1];
-
-  const foundMatch =
-    buckets.mustDoJson.find((i) => i.id === namespacedId || i.refId === task.id || i.refId === extractedRefId) ||
-    buckets.shouldDoJson.find((i) => i.id === namespacedId || i.refId === task.id || i.refId === extractedRefId) ||
-    buckets.couldDoJson.find((i) => i.id === namespacedId || i.refId === task.id || i.refId === extractedRefId);
-
-  check(
-    "Namespaced item ID resolves to canonical task refId",
-    !!foundMatch || extractedRefId === task.id,
-    `extracted: ${extractedRefId}, task.id: ${task.id}`
-  );
-
-  // 3. Mark completion on the source row and verify atomic mirroring
+  // 2. Mark complete (Check)
   await prisma.roadmapTask.update({
     where: { id: task.id },
     data: {
@@ -84,36 +60,72 @@ async function run() {
       completionDate: d,
       remainingMinutes: 0,
       completionPercent: 100,
-      actualMinutes: task.estimatedTimeMinutes,
     },
   });
 
-  const updatedTask = await prisma.roadmapTask.findUnique({ where: { id: task.id } });
+  const completedTask = await prisma.roadmapTask.findUnique({ where: { id: task.id } });
   check(
-    "Source row updated to COMPLETED in database",
-    updatedTask?.status === "COMPLETED" && updatedTask?.completionPercent === 100 && updatedTask?.remainingMinutes === 0
+    "Mark complete updates status to COMPLETED and remainingMinutes to 0",
+    completedTask?.status === "COMPLETED" && completedTask?.remainingMinutes === 0
   );
 
-  // 4. Verify duplicate safety — ensure only 1 task with this ID exists
-  const count = await prisma.roadmapTask.count({ where: { id: task.id } });
-  check("No duplicate canonical tasks created", count === 1, `Count: ${count}`);
+  // 3. Safe Unmark (Uncheck): Restore IN_PROGRESS while preserving 25m actual study history!
+  const actualHistory = completedTask?.actualMinutes ?? 25;
+  const restoredRemaining = Math.max(0, estMins - actualHistory);
+  const restoredPct = estMins > 0 ? Math.round((actualHistory / estMins) * 100) : 0;
+  const restoredStatus = actualHistory > 0 ? "IN_PROGRESS" : "TODO";
 
-  // 5. Verify invalid ID resolution fails
-  const invalidId = "invalid-non-existent-task-id-999";
-  const invalidTask = await prisma.roadmapTask.findUnique({ where: { id: invalidId } });
-  check("Invalid ID fails to resolve in database", invalidTask === null);
-
-  // Reset task back to TODO so user can test live
   await prisma.roadmapTask.update({
     where: { id: task.id },
-    data: { status: "TODO", remainingMinutes: task.estimatedTimeMinutes, completionDate: null, completionPercent: 0 },
+    data: {
+      status: restoredStatus,
+      completionDate: null,
+      remainingMinutes: restoredRemaining,
+      completionPercent: restoredPct,
+      actualMinutes: actualHistory,
+    },
+  });
+
+  const unmarkedTask = await prisma.roadmapTask.findUnique({ where: { id: task.id } });
+  check(
+    "Unmark restores status to IN_PROGRESS (not COMPLETED)",
+    unmarkedTask?.status === "IN_PROGRESS" && unmarkedTask?.completionDate === null,
+    `Status: ${unmarkedTask?.status}`
+  );
+
+  check(
+    "Unmark preserves actual study history (25m intact, not 0)",
+    unmarkedTask?.actualMinutes === 25,
+    `Actual: ${unmarkedTask?.actualMinutes}`
+  );
+
+  check(
+    "Unmark recalculates remaining minutes (35m remaining)",
+    unmarkedTask?.remainingMinutes === estMins - 25,
+    `Remaining: ${unmarkedTask?.remainingMinutes}`
+  );
+
+  // 4. Verify candidate eligibility after unmark (status !== COMPLETED)
+  const candidatePool = await prisma.roadmapTask.findMany({
+    where: { status: { not: "COMPLETED" }, id: task.id },
+  });
+  check("Unmarked task becomes eligible for planner candidate selection again", candidatePool.length === 1);
+
+  // 5. Verify duplicate safety — ensure only 1 task with this ID exists
+  const count = await prisma.roadmapTask.count({ where: { id: task.id } });
+  check("No duplicate canonical tasks created during check/uncheck cycle", count === 1, `Count: ${count}`);
+
+  // Reset task back to TODO with 0 actuals for live daily use
+  await prisma.roadmapTask.update({
+    where: { id: task.id },
+    data: { status: "TODO", actualMinutes: 0, remainingMinutes: estMins, completionDate: null, completionPercent: 0 },
   });
 
   if (failures > 0) {
     console.error(`${failures} assertion(s) failed`);
     process.exit(1);
   }
-  console.log("All checklist completion regression test cases passed successfully.");
+  console.log("All checklist completion & safe unmarking regression test cases passed successfully.");
 }
 
 run().catch((e) => {

@@ -238,13 +238,25 @@ export default function TodayPage() {
 
   const uncheckSubtopic = useCallback(async (sub: PlanItem) => {
     if (!sub.done || pendingId) return;
-    if (isCanonicalRef(sub)) return; // source of truth lives in backend tables
     setPendingId(sub.id);
     try {
-      await patchPlan({ action: "toggle-item", itemId: sub.id, done: false });
+      if (MIRRORABLE.includes(sub.refType ?? "") && sub.refId) {
+        await patchPlan({
+          action: "log-progress",
+          itemId: sub.id,
+          actualMinutes: sub.actualMinutes ?? 0,
+          stopped: true,
+          carry: false,
+          done: false,
+        });
+        showNotice(`Unmarked — ${sub.title}`);
+      } else {
+        await patchPlan({ action: "toggle-item", itemId: sub.id, done: false });
+        showNotice(`Unmarked — ${sub.title}`);
+      }
       await fetchAll();
     } catch (e) {
-      showNotice(e instanceof Error ? e.message : "Could not reopen.");
+      showNotice(e instanceof Error ? e.message : "Could not unmark.");
     } finally {
       setPendingId(null);
     }

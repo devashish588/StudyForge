@@ -847,6 +847,75 @@ async function mirrorAtomicProgress(item: PlanItem, actual: number, remaining: n
   }
 }
 
+/** Safely unmark completion: restores remainingMinutes, status, and completionPercent while preserving real actual study history. */
+async function unmarkAtomicProgress(item: PlanItem, sourceDate: string) {
+  let actualMinutes = item.actualMinutes ?? 0;
+  let remainingMinutes = item.minutes;
+  let completionPercent = 0;
+
+  try {
+    if (item.refType === "roadmapTask" && item.refId) {
+      const row = await prisma.roadmapTask.findUnique({ where: { id: item.refId } });
+      if (row) {
+        const est = row.estimatedTimeMinutes || item.minutes || 30;
+        actualMinutes = row.actualMinutes ?? 0;
+        remainingMinutes = Math.max(0, est - actualMinutes);
+        completionPercent = est > 0 ? Math.round((actualMinutes / est) * 100) : 0;
+        const newStatus = actualMinutes > 0 ? "IN_PROGRESS" : "TODO";
+
+        await prisma.roadmapTask.update({
+          where: { id: item.refId },
+          data: {
+            status: newStatus,
+            remainingMinutes,
+            completionPercent,
+            completionDate: null,
+          },
+        });
+      }
+    } else if (item.refType === "gateTopic" && item.refId) {
+      const row = await prisma.gateTopic.findUnique({ where: { id: item.refId } });
+      if (row) {
+        const est = row.estimatedMinutes || item.minutes || 30;
+        actualMinutes = 0;
+        remainingMinutes = est;
+        completionPercent = 0;
+
+        await prisma.gateTopic.update({
+          where: { id: item.refId },
+          data: {
+            completed: false,
+            completedAt: null,
+            remainingMinutes: est,
+            completionPercent: 0,
+          },
+        });
+      }
+    } else if (item.refType === "projectTask" && item.refId) {
+      const row = await prisma.projectTask.findUnique({ where: { id: item.refId } });
+      if (row) {
+        const est = row.estimatedMinutes || item.minutes || 30;
+        actualMinutes = 0;
+        remainingMinutes = est;
+        completionPercent = 0;
+
+        await prisma.projectTask.update({
+          where: { id: item.refId },
+          data: {
+            completed: false,
+            remainingMinutes: est,
+            completionPercent: 0,
+          },
+        });
+      }
+    }
+  } catch (e) {
+    console.error("unmarkAtomicProgress error:", e);
+  }
+
+  return { actualMinutes, remainingMinutes, completionPercent };
+}
+
 /** Carry one item into tomorrow's SHOULD pool (dedupe by refId, keep original id). */
 async function carryItemToTomorrow(date: string, item: PlanItem) {
   const tomorrow = addDays(date, 1);
@@ -929,11 +998,22 @@ export async function PATCH(req: Request) {
       case "toggle-item": {
         const found = await findOrResolveItem(day, body.itemId, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
-        buckets[found.bucket][found.idx] = { ...buckets[found.bucket][found.idx], done: Boolean(body.done) };
-        await persistBuckets(date, buckets);
-        if (Boolean(body.done)) {
-          const cur = buckets[found.bucket][found.idx];
+        const cur = buckets[found.bucket][found.idx];
+        const isDone = Boolean(body.done);
+        if (isDone) {
+          buckets[found.bucket][found.idx] = { ...cur, done: true };
+          await persistBuckets(date, buckets);
           await mirrorAtomicProgress(cur, cur.minutes, 0, 100, date);
+        } else {
+          const unmarked = await unmarkAtomicProgress(cur, date);
+          buckets[found.bucket][found.idx] = {
+            ...cur,
+            done: false,
+            actualMinutes: unmarked.actualMinutes,
+            remainingMinutes: unmarked.remainingMinutes,
+            completionPercent: unmarked.completionPercent,
+          };
+          await persistBuckets(date, buckets);
         }
         break;
       }
@@ -1141,6 +1221,21 @@ export async function PATCH(req: Request) {
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         const cur = buckets[found.bucket][found.idx];
         const explicitDone = body.done === true;
+        const explicitUnmark = body.done === false;
+
+        if (explicitUnmark) {
+          const unmarked = await unmarkAtomicProgress(cur, date);
+          buckets[found.bucket][found.idx] = {
+            ...cur,
+            done: false,
+            actualMinutes: unmarked.actualMinutes,
+            remainingMinutes: unmarked.remainingMinutes,
+            completionPercent: unmarked.completionPercent,
+          };
+          await persistBuckets(date, buckets);
+          break;
+        }
+
         const actual = Math.max(0, Math.min(cur.minutes, Number(body.actualMinutes) || 0));
         // Explicit done=true means "user finished this": force remaining 0 /
         // pct 100 / done even if the item carries stale atomic residue,
