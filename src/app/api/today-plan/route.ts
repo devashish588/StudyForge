@@ -1008,19 +1008,27 @@ export async function PATCH(req: Request) {
         // item, compute remaining, and mirror atomic state onto the source row
         // (RoadmapTask / GateTopic / ProjectTask). Remaining > 0 stays on the
         // item for automatic carry-over; it is never silently deleted.
+        // Explicit done=true means "user finished this": force remaining 0 /
+        // pct 100 even if the item carries stale atomic residue, mirroring
+        // the close-day completed branch (never silently un-complete).
         const found = findItem(day, body.itemId);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         const cur = buckets[found.bucket][found.idx];
+        const explicitDone = body.done === true;
         const actual = Math.max(0, Math.min(cur.minutes, Number(body.actualMinutes) || 0));
-        const remaining = Math.max(0, cur.minutes - actual);
-        const pct = cur.minutes > 0 ? Math.round((actual / cur.minutes) * 100) : 0;
+        // Explicit done=true means "user finished this": force remaining 0 /
+        // pct 100 / done even if the item carries stale atomic residue,
+        // mirroring the close-day completed branch. The mirrored actual stays
+        // the newly-reported portion so partials are never double-counted.
+        const remaining = explicitDone ? 0 : Math.max(0, cur.minutes - actual);
+        const pct = explicitDone ? 100 : (cur.minutes > 0 ? Math.round((actual / cur.minutes) * 100) : 0);
         const stopped = body.stopped === true || remaining > 0;
         buckets[found.bucket][found.idx] = {
           ...cur,
           actualMinutes: actual,
           remainingMinutes: remaining,
           completionPercent: pct,
-          done: remaining === 0 ? true : Boolean(body.done),
+          done: explicitDone ? true : (remaining === 0 ? true : Boolean(body.done)),
         };
         await persistBuckets(date, buckets);
         await mirrorAtomicProgress(cur, actual, remaining, pct, date);

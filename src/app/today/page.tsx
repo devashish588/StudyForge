@@ -194,12 +194,13 @@ export default function TodayPage() {
     setPendingId(sub.id);
     try {
       if (MIRRORABLE.includes(sub.refType ?? "") && sub.refId) {
-        // Canonical completion: full remaining allocation → source row
-        // marked complete (status/COMPLETED/completedAt) via existing mirror.
+        // Canonical completion: report the remaining allocation with an
+        // explicit done flag (backend forces remaining 0 / pct 100 and marks
+        // the source row complete, even with stale atomic residue).
         await patchPlan({
           action: "log-progress", itemId: sub.id,
           actualMinutes: sub.remainingMinutes ?? sub.minutes,
-          stopped: true, carry: false,
+          stopped: true, carry: false, done: true,
         });
         showNotice(`Recorded — ${sub.title} complete`);
       } else if (sub.refType === "revisionItem" && sub.refId) {
@@ -445,7 +446,7 @@ function AddExtraModal({ date, planItems, onClose, onDone, onNotice }: {
         } else if ((["roadmapTask", "gateTopic", "projectTask"] as string[]).includes(existing.refType ?? "") && existing.refId) {
           await fetch("/api/today-plan", {
             method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date, action: "log-progress", itemId: existing.id, actualMinutes: existing.remainingMinutes ?? existing.minutes, stopped: true, carry: false }),
+            body: JSON.stringify({ date, action: "log-progress", itemId: existing.id, actualMinutes: existing.remainingMinutes ?? existing.minutes, stopped: true, carry: false, done: true }),
           });
           onNotice(`Marked complete — ${existing.title} (already on your plan, no duplicate)`);
         } else if (existing.refType === "revisionItem" && existing.refId) {
@@ -491,7 +492,7 @@ function AddExtraModal({ date, planItems, onClose, onDone, onNotice }: {
         if (added && (["roadmapTask", "gateTopic", "projectTask"] as string[]).includes(refType)) {
           await fetch("/api/today-plan", {
             method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date, action: "log-progress", itemId: added.id, actualMinutes: added.remainingMinutes ?? added.minutes, stopped: true, carry: false }),
+            body: JSON.stringify({ date, action: "log-progress", itemId: added.id, actualMinutes: added.remainingMinutes ?? added.minutes, stopped: true, carry: false, done: true }),
           });
         } else if (added) {
           await fetch("/api/today-plan", {
