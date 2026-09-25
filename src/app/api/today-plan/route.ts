@@ -552,8 +552,8 @@ async function assemble(
         phase: plan.horizons.phase, targetMinutes: plan.targetMinutes,
         stretchMinutes, gateDeadline: input.settings.syllabusDeadline,
       },
-      carryOver: items.filter((i) => i.movedFrom && !i.done),
-      easyStart: [], hardDeepWork: [], easyApply: items.filter((i) => !i.done), recall: [],
+      carryOver: items.filter((i) => i.movedFrom && !i.done).map((i) => ({ ...i, fitted: false as const })),
+      easyStart: [], hardDeepWork: [], easyApply: items.filter((i) => !i.done).map((i) => ({ ...i, fitted: false as const })), recall: [],
       // No capacity fit ran on this path: nothing is scheduled, everything
       // visible is overflow (same semantics as overflowMinutes elsewhere).
       totalPlannedMinutes: 0, overflowMinutes: total,
@@ -840,15 +840,47 @@ export async function PATCH(req: Request) {
         const it = body.item ?? {};
         if (!it.title || !String(it.title).trim()) return NextResponse.json({ error: "Title is required" }, { status: 400 });
         const tier: PlanItem["tier"] = it.tier === "MUST" || it.tier === "COULD" ? it.tier : "SHOULD";
+        // Canonical extra (additive): link an existing curriculum row so
+        // completion mirrors onto it via the standard log-progress path.
+        // No duplicate canonical rows are ever created here.
+        const linkable = ["roadmapTask", "gateTopic", "projectTask", "revisionItem"] as const;
+        let refType: PlanItem["refType"] = "custom";
+        let refId: string | undefined;
+        let kind: PlanItem["kind"] = "CUSTOM";
+        if (typeof it.refId === "string" && it.refId.trim()) {
+          if (!linkable.includes(it.refType)) return NextResponse.json({ error: "Unsupported canonical link type" }, { status: 400 });
+          refType = it.refType;
+          refId = it.refId.trim();
+          const exists =
+            refType === "roadmapTask" ? await prisma.roadmapTask.findUnique({ where: { id: refId }, select: { id: true } }) :
+            refType === "gateTopic" ? await prisma.gateTopic.findUnique({ where: { id: refId }, select: { id: true } }) :
+            refType === "projectTask" ? await prisma.projectTask.findUnique({ where: { id: refId }, select: { id: true } }) :
+            await prisma.revisionItem.findUnique({ where: { id: refId }, select: { id: true } });
+          if (!exists) return NextResponse.json({ error: "Canonical item not found" }, { status: 404 });
+          kind =
+            refType === "roadmapTask" ? "ROADMAP" :
+            refType === "gateTopic" ? "GATE" :
+            refType === "projectTask" ? "PROJECT" : "REVISION";
+          // Duplicate prevention (server-side): same canonical ref already on today's plan.
+          const already = [...buckets.mustDoJson, ...buckets.shouldDoJson, ...buckets.couldDoJson]
+            .find((i) => i.refId === refId);
+          if (already) return NextResponse.json({ duplicate: true, item: already });
+        } else if (it.kind === "ROADMAP" || it.kind === "GATE" || it.kind === "PRACTICE" || it.kind === "REVISION" || it.kind === "PROJECT" || it.kind === "BACKLOG") {
+          kind = it.kind;
+        }
         const item: PlanItem = {
           id: `${date}:custom:${Date.now().toString(36)}`,
-          kind: "CUSTOM", tier,
+          kind, tier,
           title: String(it.title).slice(0, 200),
           detail: it.detail ? String(it.detail).slice(0, 300) : undefined,
           minutes: Math.max(5, Math.min(480, Number(it.minutes) || 30)),
-          refType: "custom",
+          refType,
+          ...(refId ? { refId } : {}),
+          ...(it.subjectName ? { subjectName: String(it.subjectName).slice(0, 120) } : {}),
+          ...(it.topicName ? { topicName: String(it.topicName).slice(0, 200) } : {}),
           why: "Added by you for today.",
           done: false,
+          extra: true,
         };
         if (tier === "MUST") buckets.mustDoJson.push(item);
         else if (tier === "COULD") buckets.couldDoJson.push(item);

@@ -40,6 +40,11 @@ export interface PlanItem {
   completionPercent?: number;
   carryOverCount?: number;
   sourceDate?: string | null;
+  // Today goal checklist (presentation metadata only — never affects planning).
+  // fitted: item was capacity-fitted by the builder (scheduled work).
+  // extra: user-added extra (recorded work beyond the generated plan).
+  fitted?: boolean;
+  extra?: boolean;
 }
 
 export interface Doubt {

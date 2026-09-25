@@ -95,7 +95,9 @@ function toCandidate(item: PlanItem, fallbackDate: string): WorkCandidate {
 export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretchMinutes: number): MissionPayload {
   const date = plan.date;
   const capacity = plan.targetMinutes;
-  const items = plan.items.filter((i) => !i.done);
+  // User extras (extra === true) are recorded work, never scheduled work:
+  // they stay out of capacity-fit so planned minutes never inflate.
+  const items = plan.items.filter((i) => !i.done && !i.extra);
 
   // Enrich candidates with engine-level signals (errors, confidence, overdue).
   const errByTopic = new Map<string, number>();
@@ -154,7 +156,8 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   const asItems = (built: ReturnType<typeof buildMission>["carryOver"], block: NonNullable<PlanItem["block"]>): PlanItem[] =>
     built.map((b) => {
       const orig = items.find((i) => (i.refId ?? i.id) === b.refId) ?? items.find((i) => i.title === b.title);
-      return { ...(orig ?? b), ...b, block, tier: b.tier, minutes: b.minutes };
+      // fitted: this item passed the builder's capacity fit (scheduled work).
+      return { ...(orig ?? b), ...b, block, tier: b.tier, minutes: b.minutes, fitted: true };
     });
 
   const carryOver = asItems(mission.carryOver, "CARRY_OVER");
@@ -226,7 +229,8 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   const leftover = items.filter((i) => !scheduledIds.has(i.refId ?? i.id) && !i.done);
   for (const l of leftover) {
     const b = blockOf(l);
-    const withBlock: PlanItem = { ...l, block: b };
+    // fitted: false — visible queued overflow, explicitly NOT scheduled work.
+    const withBlock: PlanItem = { ...l, block: b, fitted: false };
     if (b === "CARRY_OVER") carryOver.push(withBlock);
     else if (b === "EASY_START") easyStart.push(withBlock);
     else if (b === "HARD_DEEP") hardDeepWork.push(withBlock);
