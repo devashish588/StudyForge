@@ -109,44 +109,42 @@ interface ProgressionChainItem {
 }
 
 const AI_CHAIN: ProgressionChainItem[] = [
-  { stage: 0, re: /(python for ai|ml workflow|preprocessing|feature engineering|model selection|evaluation foundations)/i, label: "AI Foundations" },
-  { stage: 1, re: /\btoken|context window/i, label: "Tokens & Context" },
-  { stage: 2, re: /transformer|attention/i, label: "Transformers" },
-  { stage: 3, re: /prompt/i, label: "Prompt Engineering" },
-  { stage: 4, re: /embedding/i, label: "Embeddings" },
-  { stage: 5, re: /vector|semantic search|chromadb|pinecone|chunking/i, label: "Vector Search" },
-  { stage: 6, re: /\brag\b|retrieval|rerank|bm25|hybrid/i, label: "RAG" },
-  { stage: 7, re: /evals?|evaluation|benchmark|grounding|citation/i, label: "RAG Evaluation" },
-  { stage: 8, re: /agent|react loop|tool|langgraph|orchestrat|memory/i, label: "Agents" },
-  { stage: 9, re: /production|deploy|docker|ci\/cd|k8s|kubernetes|observability|tracing|monitor|fastapi|redis/i, label: "Production AI" },
+  { stage: 0, re: /(ml foundations|python for ai|ml workflow|preprocessing|feature engineering|model selection|evaluation foundations|classical models)/i, label: "ML Foundations" },
+  { stage: 1, re: /(deep learning foundations|neural network|pytorch|token|context window)/i, label: "Deep Learning Foundations" },
+  { stage: 2, re: /(transformer|attention)/i, label: "Transformers" },
+  { stage: 3, re: /(prompt|context engineering|structured output)/i, label: "Prompt Engineering" },
+  { stage: 4, re: /(embedding|vector search|bm25|hybrid retrieval|chunking|reranking)/i, label: "Embeddings & Vectors" },
+  { stage: 5, re: /(rag evaluation|function\/tool calling|mcp)/i, label: "RAG & Evals" },
+  { stage: 6, re: /(agent|react loop|tool|langgraph|orchestrat|memory|failure engineering)/i, label: "AI Agents" },
+  { stage: 7, re: /(production ai|deploy|docker|ci\/cd|k8s|kubernetes|observability|tracing|monitor|fastapi|redis|fine-tuning)/i, label: "Production AI" },
 ];
 
 const DSA_CHAIN: ProgressionChainItem[] = [
   { stage: 0, re: /(dsa introduction|big-?o|complexity|asymptotic|dsa foundations)/i, label: "DSA Foundations & Big-O" },
-  { stage: 1, re: /(array|vector)/i, label: "Arrays Fundamentals" },
-  { stage: 2, re: /(string|pattern matching)/i, label: "Strings" },
-  { stage: 3, re: /(linked list)/i, label: "Linked Lists" },
-  { stage: 4, re: /(stack|queue)/i, label: "Stacks & Queues" },
-  { stage: 5, re: /(binary search|two pointers|sliding window)/i, label: "Binary Search & Pointers" },
-  { stage: 6, re: /(tree|binary tree|bst)/i, label: "Trees & BST" },
-  { stage: 7, re: /(heap|priority queue)/i, label: "Heaps" },
-  { stage: 8, re: /(graph|bfs|dfs)/i, label: "Graphs" },
-  { stage: 9, re: /(backtracking|trie)/i, label: "Backtracking & Trie" },
-  { stage: 10, re: /(\bdp\b|dynamic programming|greedy)/i, label: "DP & Greedy" },
+  { stage: 1, re: /(array|vector|basic sorting)/i, label: "Arrays & Sorting" },
+  { stage: 2, re: /(string|pattern matching|linked list)/i, label: "Strings & Linked Lists" },
+  { stage: 3, re: /(stack|queue|deque)/i, label: "Stacks & Queues" },
+  { stage: 4, re: /(binary search|two pointers|sliding window|hashmap|hashing)/i, label: "Binary Search & Pointers" },
+  { stage: 5, re: /(tree|binary tree|bst)/i, label: "Trees & BST" },
+  { stage: 6, re: /(heap|priority queue)/i, label: "Heaps" },
+  { stage: 7, re: /(graph|bfs|dfs|dijkstra)/i, label: "Graphs" },
+  { stage: 8, re: /(recursion|backtracking|trie)/i, label: "Recursion & Backtracking" },
+  { stage: 9, re: /(\bdp\b|dynamic programming|greedy)/i, label: "DP & Greedy" },
 ];
 
 const SWE_CHAIN: ProgressionChainItem[] = [
-  { stage: 0, re: /(backend|http|rest|api|express)/i, label: "Backend & API Fundamentals" },
-  { stage: 1, re: /(postgresql|sql|database|prisma|schema)/i, label: "Databases" },
-  { stage: 2, re: /(redis|cache|queue|worker)/i, label: "Caching & Queues" },
-  { stage: 3, re: /(testing|docker|ci\/cd|container)/i, label: "Testing & DevOps" },
-  { stage: 4, re: /(system design|architecture)/i, label: "System Design" },
+  { stage: 0, re: /(modern javascript|typescript essentials|web architecture|http fundamentals|async js)/i, label: "JS/TS & Web Fundamentals" },
+  { stage: 1, re: /(backend apis|rest|validation|auth|rbac|express)/i, label: "Backend APIs" },
+  { stage: 2, re: /(orm|data modeling|prisma|postgresql depth)/i, label: "Databases & ORM" },
+  { stage: 3, re: /(redis|queue|worker|eventual consistency)/i, label: "Caching & Queues" },
+  { stage: 4, re: /(testing pyramid|containerization|ci\/cd|linux, git)/i, label: "Testing & DevOps" },
+  { stage: 5, re: /(system design core)/i, label: "System Design" },
 ];
 
 const GATE_CHAIN: ProgressionChainItem[] = [
-  { stage: 0, re: /(discrete|logic|proposition|set theory|boolean)/i, label: "Discrete Math & Logic" },
+  { stage: 0, re: /(discrete mathematics|logic|proposition|sets, relations|partial order|boolean)/i, label: "Discrete Math & Logic" },
   { stage: 1, re: /(c programming|data structure|algorithm)/i, label: "CS Fundamentals & Algorithms" },
-  { stage: 2, re: /(operating system|dbms|computer network)/i, label: "Core CS Systems" },
+  { stage: 2, re: /(operating systems|dbms|normalization|cpu scheduling|computer network)/i, label: "Core CS Systems (OS, DBMS, CN)" },
   { stage: 3, re: /(compiler|theory of computation|digital logic)/i, label: "Theoretical CS" },
 ];
 
@@ -173,8 +171,18 @@ export function prereqBlocked(candidate: WorkCandidate, incompleteTitles: string
   const st = getTopicStage(candidate.title, candidate.track);
   const lowerIncomplete = incompleteTitles.map((t) => t.toLowerCase());
 
-  // Prerequisite correctness > deadline priority > weakness > revision
-  // Beginner protection rule: PYQs or revision items for a track are BLOCKED if foundational
+  // Beginner protection rule 1: Project tasks (kind === "PROJECT") are BLOCKED
+  // if Stage 0 or Stage 1 foundational curriculum topics for that track are incomplete.
+  const isProject = candidate.kind === "PROJECT" || candidate.refType === "projectTask";
+  if (isProject && chain.length > 0) {
+    const stage0 = chain[0];
+    const hit = lowerIncomplete.find((t) => stage0.re.test(t));
+    if (hit) {
+      return `Prerequisite foundational topic “${stage0.label}” must be studied before starting project milestone "${candidate.title}".`;
+    }
+  }
+
+  // Beginner protection rule 2: PYQs or revision items for a track are BLOCKED if foundational
   // (stage 0) roadmap/curriculum items for that track are still incomplete.
   const isPyqOrRevision = candidate.revisionDue || candidate.kind === "REVISION" || /(pyq|10 pyqs)/i.test(candidate.title);
 
