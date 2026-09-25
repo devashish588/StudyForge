@@ -35,6 +35,9 @@ export interface MissionPayload {
   easyApply: PlanItem[];
   recall: PlanItem[];
   totalPlannedMinutes: number;
+  /** Visible-but-not-capacity-fitted minutes (fallback overflow). Never
+      presented as scheduled/required; informational only. */
+  overflowMinutes: number;
   remainingCapacity: number;
   scheduleRisk: ScheduleRisk;
   rebalance: { gateShare: number; aiShare: number; sweShare: number; reason: string };
@@ -215,7 +218,11 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   // Fallback routing: if the mission builder left items unscheduled (e.g. all
   // blocked), route leftovers by the fixed block rules so /today always shows
   // exactly what to study in Easy → Hard → Easy → Recall order.
+  // These leftovers are VISIBLE but NOT capacity-fitted: their minutes count
+  // toward overflowMinutes, never toward totalPlannedMinutes.
   const scheduledIds = new Set([...carryOver, ...easyStart, ...hardDeepWork, ...easyApply, ...recall].map((i) => i.refId ?? i.id));
+  const fittedTotal = [...carryOver, ...easyStart, ...hardDeepWork, ...easyApply, ...recall].reduce((a, i) => a + i.minutes, 0);
+  let overflowTotal = 0;
   const leftover = items.filter((i) => !scheduledIds.has(i.refId ?? i.id) && !i.done);
   for (const l of leftover) {
     const b = blockOf(l);
@@ -225,9 +232,12 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     else if (b === "HARD_DEEP") hardDeepWork.push(withBlock);
     else if (b === "RECALL") recall.push(withBlock);
     else easyApply.push(withBlock);
+    overflowTotal += withBlock.minutes;
   }
 
-  const totalPlanned = [...carryOver, ...easyStart, ...hardDeepWork, ...easyApply, ...recall].reduce((a, i) => a + i.minutes, 0);
+  // Metric semantics (fixed): totalPlannedMinutes = capacity-fitted minutes
+  // ONLY. Fallback overflow is reported separately and never scheduled.
+  const totalPlanned = fittedTotal;
 
   return {
     date,
@@ -242,6 +252,7 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     },
     carryOver, easyStart, hardDeepWork, easyApply, recall,
     totalPlannedMinutes: totalPlanned,
+    overflowMinutes: overflowTotal,
     remainingCapacity: Math.max(0, capacity - totalPlanned),
     scheduleRisk,
     rebalance,

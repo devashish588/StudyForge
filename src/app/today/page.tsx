@@ -74,7 +74,7 @@ interface MissionPayload {
   date: string;
   journey: { day: number; total: number; daysLeft: number; phase: string; targetMinutes: number; stretchMinutes: number; gateDeadline: string };
   carryOver: PlanItem[]; easyStart: PlanItem[]; hardDeepWork: PlanItem[]; easyApply: PlanItem[]; recall: PlanItem[];
-  totalPlannedMinutes: number; remainingCapacity: number;
+  totalPlannedMinutes: number; overflowMinutes: number; remainingCapacity: number;
   scheduleRisk: { status: string; message: string; recovery: string[]; requiredPerDay: number; sustainablePerDay: number; gapPerDay: number };
   rebalance: { reason: string };
   deferred: PlanItem[];
@@ -635,7 +635,9 @@ export default function TodayPage() {
           <div className="flex items-baseline justify-between">
             <h2 className="type-h2">Today&apos;s mission</h2>
             <span className="text-xs font-semibold text-gray-500">
-              {minutesToHM(plan.mission.totalPlannedMinutes)} planned · {minutesToHM(plan.mission.remainingCapacity)} spare
+              {minutesToHM(plan.mission.totalPlannedMinutes)} planned
+              {(plan.mission.overflowMinutes ?? 0) > 0 ? ` · ${minutesToHM(plan.mission.overflowMinutes)} queued` : ""}
+              {` · ${minutesToHM(plan.mission.remainingCapacity)} spare`}
             </span>
           </div>
           <div className="mt-3 space-y-3">

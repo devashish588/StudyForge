@@ -554,7 +554,10 @@ async function assemble(
       },
       carryOver: items.filter((i) => i.movedFrom && !i.done),
       easyStart: [], hardDeepWork: [], easyApply: items.filter((i) => !i.done), recall: [],
-      totalPlannedMinutes: total, remainingCapacity: Math.max(0, plan.targetMinutes - total),
+      // No capacity fit ran on this path: nothing is scheduled, everything
+      // visible is overflow (same semantics as overflowMinutes elsewhere).
+      totalPlannedMinutes: 0, overflowMinutes: total,
+      remainingCapacity: Math.max(0, plan.targetMinutes),
       scheduleRisk: {
         status: "ON_TRACK", totalRemainingMinutes: total, availableMinutes: plan.targetMinutes,
         requiredPerDay: 0, sustainablePerDay: plan.targetMinutes, gapPerDay: 0,
@@ -598,6 +601,7 @@ async function assemble(
     easyApply: mission.easyApply,
     recall: mission.recall,
     totalPlannedMinutes: mission.totalPlannedMinutes,
+    overflowMinutes: mission.overflowMinutes,
     remainingCapacity: mission.remainingCapacity,
     scheduleRisk: mission.scheduleRisk,
     reasons: plan.logic,

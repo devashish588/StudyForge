@@ -14,12 +14,27 @@ export default function PrintPage() {
   const [gate, setGate] = useState<any>(null);
   const [errors, setErrors] = useState<any[]>([]);
   const [day, setDay] = useState<any>(null);
+  // Complete mission from the planner (same source as /today).
+  // Sessions alone only show started timer blocks — never the full plan.
+  const [date] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("date") ?? todayStr();
+    } catch {
+      return todayStr();
+    }
+  });
+  const [mission, setMission] = useState<any>(null);
+  const [missionFailed, setMissionFailed] = useState(false);
 
   useEffect(() => {
     fetch("/api/tasks").then((r) => r.json()).then((d) => setTasks(d || [])).catch(() => {});
     fetch("/api/gate").then((r) => r.json()).then((d) => { setGate(d); setErrors(d?.errorLogs || []); }).catch(() => {});
-    fetch(`/api/study-day?date=${todayStr()}`).then((r) => r.json()).then(setDay).catch(() => {});
-  }, []);
+    fetch(`/api/study-day?date=${date}`).then((r) => r.json()).then(setDay).catch(() => {});
+    fetch(`/api/today-plan?date=${date}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("plan"))))
+      .then((d) => setMission(d?.mission ?? null))
+      .catch(() => setMissionFailed(true));
+  }, [date]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -45,21 +60,42 @@ export default function PrintPage() {
       <div className="card-print p-8 bg-white text-black rounded-xl border border-gray-300 space-y-6">
         <div className="text-center border-b-2 border-black pb-4">
           <h1 className="text-2xl font-black uppercase tracking-wider">StudyForge — {section} Sheet</h1>
-          <p className="text-xs font-semibold mt-1">Sep 24 → Dec 31 (99 days) • Flexible 8–10h • No fixed sittings</p>
+          <p className="text-xs font-semibold mt-1">Sep 24 → Dec 31 (99 days) • 6h target · 8h stretch • No fixed sittings</p>
         </div>
 
         {section === "Daily" && (
           <div className="space-y-3">
-            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Today — {todayStr()} (target {minutesToHM(day?.targetMinutes ?? 360)})</h2>
-            {(day?.sessions || []).map((s: any, i: number) => (
-              <CheckRow key={s.id || i} title={`${s.blockLabel || `Block ${i + 1}`}: ${s.title}`} sub={`${s.category} • planned ${s.plannedMinutes}m • actual ${s.actualMinutes}m`} />
-            ))}
-            {(day?.sessions || []).length === 0 && (
+            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Today — {date} (target {minutesToHM(mission?.journey?.targetMinutes ?? day?.targetMinutes ?? 360)})</h2>
+            {mission ? (
               <>
-                <CheckRow title="Block 1: GATE focus (180m)" sub="PYQs + weak-topic drills" />
-                <CheckRow title="Block 2: Roadmap deep work (180m)" sub="Current topic + practice set" />
-                <CheckRow title="Block 3: Practice (60m)" sub="Pattern problems" />
-                <CheckRow title="Block 4: Revision recall (60m)" sub="Due queue first" />
+                <MissionBlockPrint label="Carried forward" items={mission.carryOver} />
+                <MissionBlockPrint label="Easy start" items={mission.easyStart} />
+                <MissionBlockPrint label="Hard deep work" items={mission.hardDeepWork} />
+                <MissionBlockPrint label="Easy apply" items={mission.easyApply} />
+                <MissionBlockPrint label="Recall" items={mission.recall} />
+                <p className="text-[11px] text-gray-600">
+                  Planned {minutesToHM(mission.totalPlannedMinutes ?? 0)}
+                  {(mission.overflowMinutes ?? 0) > 0 ? ` · ${minutesToHM(mission.overflowMinutes)} queued (overflow, not scheduled)` : ""}
+                  {(mission.remainingCapacity ?? 0) > 0 ? ` · ${minutesToHM(mission.remainingCapacity)} spare` : ""}
+                  {mission.scheduleRisk?.status && mission.scheduleRisk.status !== "ON_TRACK" ? ` · schedule: ${mission.scheduleRisk.status}` : ""}
+                </p>
+              </>
+            ) : (
+              <>
+                {(day?.sessions || []).map((s: any, i: number) => (
+                  <CheckRow key={s.id || i} title={`${s.blockLabel || `Block ${i + 1}`}: ${s.title}`} sub={`${s.category} • planned ${s.plannedMinutes}m • actual ${s.actualMinutes}m`} />
+                ))}
+                {(day?.sessions || []).length === 0 && !missionFailed && (
+                  <p className="text-xs text-gray-600">Loading today&apos;s plan…</p>
+                )}
+                {(day?.sessions || []).length === 0 && missionFailed && (
+                  <>
+                    <CheckRow title="Block 1: GATE focus (180m)" sub="PYQs + weak-topic drills" />
+                    <CheckRow title="Block 2: Roadmap deep work (180m)" sub="Current topic + practice set" />
+                    <CheckRow title="Block 3: Practice (60m)" sub="Pattern problems" />
+                    <CheckRow title="Block 4: Revision recall (60m)" sub="Due queue first" />
+                  </>
+                )}
               </>
             )}
             <div className="border-2 border-dashed border-gray-400 p-4 rounded min-h-[100px]">
@@ -122,6 +158,22 @@ export default function PrintPage() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function MissionBlockPrint({ label, items }: { label: string; items: any[] }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-black uppercase tracking-wider">{label} ({items.length})</p>
+      {items.map((t: any, i: number) => (
+        <CheckRow
+          key={t.id || `${label}-${i}`}
+          title={`${t.title}${t.done ? " ✓" : ""}`}
+          sub={`${t.kind} • ${t.minutes}m${t.remainingMinutes != null && !t.done ? ` • ${t.remainingMinutes}m remaining` : ""}`}
+        />
+      ))}
     </div>
   );
 }

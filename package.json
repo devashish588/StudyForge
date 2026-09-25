@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:seed": "prisma db seed",
-    "db:migrate": "prisma migrate deploy"
+    "db:migrate": "prisma migrate deploy",
+    "test:mission": "npx ts-node -P scripts/tsconfig.test.json scripts/mission-metrics.test.ts"
   },
   "prisma": {
     "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
