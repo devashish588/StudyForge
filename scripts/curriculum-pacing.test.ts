@@ -164,7 +164,7 @@ function check(name: string, actual: unknown, want: unknown) {
 // (Jan-15 horizon total 44675m / 113d = 395m/d required.)
 {
   const r = computeScheduleRisk({
-    remainingByTrack: { GATE: 20000, AI_ENGINEERING: 15000, SOFTWARE_ENGINEERING: 9675 },
+    remainingByTrack: { GATE: 20000, AI_ENGINEERING: 15000, SOFTWARE_ENGINEERING: 9675, DSA: 0 },
     daysLeft: 113, sustainablePerDay: null, capacityPerDay: 360, stretchPerDay: 480,
   });
   check("risk unknown → AT_RISK at 395/d", r.status, "AT_RISK");
@@ -172,7 +172,7 @@ function check(name: string, actual: unknown, want: unknown) {
   check("risk gap null", r.gapPerDay, null);
   check("risk message states bands, no fake pace", r.message.includes("No history yet") && !r.message.includes("sustainable pace is"), true);
   const r2 = computeScheduleRisk({
-    remainingByTrack: { GATE: 15000, AI_ENGINEERING: 15000, SOFTWARE_ENGINEERING: 4675 },
+    remainingByTrack: { GATE: 15000, AI_ENGINEERING: 15000, SOFTWARE_ENGINEERING: 4675, DSA: 0 },
     daysLeft: 60, sustainablePerDay: 300, capacityPerDay: 360, stretchPerDay: 480,
   });
   check("risk known history unchanged", r2.status, "OVERLOAD");

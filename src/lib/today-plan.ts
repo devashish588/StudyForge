@@ -32,7 +32,7 @@ export interface PlanItem {
   movedFrom?: string;
   // Autonomous orchestrator — atomic execution state (all optional, backward-compatible).
   block?: "CARRY_OVER" | "EASY_START" | "HARD_DEEP" | "EASY_APPLY" | "RECALL";
-  track?: "GATE" | "AI_ENGINEERING" | "SOFTWARE_ENGINEERING";
+  track?: "GATE" | "AI_ENGINEERING" | "SOFTWARE_ENGINEERING" | "DSA";
   priority?: "CORE" | "IMPORTANT" | "OPTIONAL";
   difficulty?: string;
   actualMinutes?: number;
@@ -481,7 +481,7 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
     title: `${practiceProblems} practice problems`,
     detail: `DSA · Core 100 · Mixed set · ~${budget.practice}m`,
     minutes: budget.practice, refType: "custom",
-    track: "SOFTWARE_ENGINEERING",
+    track: "DSA",
     why: "Every learning topic ships with a practice requirement — Learn → Practice → Recall.",
     done: false,
   };

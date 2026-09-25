@@ -180,7 +180,7 @@ async function dsaPayload(paceArgs?: { deadline: string; currentPerDay: number }
     .slice(0, 5)
     .map((p) => ({ id: p.id, title: p.title, retryDate: p.retryDate }));
   const primers = await prisma.roadmapTask.findMany({
-    where: { track: "SOFTWARE_ENGINEERING", category: "DSA" },
+    where: { category: "DSA" },
     select: { status: true },
   });
   const primersDone = primers.filter((t) => doneStatus(t.status)).length;

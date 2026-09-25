@@ -142,6 +142,7 @@ function trackLabelFor(item: PlanItem): string {
   const t = String(item.track || "");
   if (t === "GATE" || t === "GATE_PREP") return "GATE";
   if (t === "AI_ENGINEERING") return "AI Engineering";
+  if (t === "DSA") return "DSA";
   if (t === "SOFTWARE_ENGINEERING") return "Software Engineering";
   return item.kind === "GATE" ? "GATE" : "Roadmap";
 }

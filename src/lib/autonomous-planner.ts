@@ -15,7 +15,7 @@
 import type { PlanItem, PlanItemKind } from "./today-plan";
 
 export type CognitiveBlock = "CARRY_OVER" | "EASY_START" | "HARD_DEEP" | "EASY_APPLY" | "RECALL";
-export type Track = "GATE" | "AI_ENGINEERING" | "SOFTWARE_ENGINEERING";
+export type Track = "GATE" | "AI_ENGINEERING" | "SOFTWARE_ENGINEERING" | "DSA";
 export type CorePriority = "CORE" | "IMPORTANT" | "OPTIONAL";
 
 export interface WorkCandidate {
@@ -94,6 +94,7 @@ export interface RebalanceSignal {
 export function classifyTrack(kind: PlanItemKind, categoryOrTitle: string): Track {
   if (kind === "GATE") return "GATE";
   const s = (categoryOrTitle || "").toLowerCase();
+  if (kind === "PRACTICE" || /(dsa|core 100|leetcode|striver|neetcode)/.test(s)) return "DSA";
   if (/(ml|generative|rag|agent|llm|transformer|embedding|prompt|genai)/.test(s)) return "AI_ENGINEERING";
   return "SOFTWARE_ENGINEERING";
 }

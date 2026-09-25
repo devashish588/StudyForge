@@ -135,6 +135,7 @@ const DSA_HINT = /(dsa|array|linked list|tree\b|bst|heap|graph|dynamic programmi
 export function trackOfPlanItem(item: PlanItemLike): TrackKey {
   if (item.track === "GATE" || item.track === "GATE_PREP") return "gate";
   if (item.track === "AI_ENGINEERING") return "ai";
+  if (item.track === "DSA") return "dsa";
   if (item.track === "SOFTWARE_ENGINEERING") {
     const hay = `${item.detail ?? ""} ${item.title}`;
     if (AI_HINT.test(hay)) return "ai";

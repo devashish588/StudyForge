@@ -157,13 +157,14 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     if (t.priority === "OPTIONAL") currOptional += mins;
     else gateRemaining += mins;
   }
-  let aiRemaining = 0, sweRemaining = 0;
+  let aiRemaining = 0, sweRemaining = 0, dsaRoadmapRemaining = 0;
   let aiDone = 0, aiTotal = 0, sweDone = 0, sweTotal = 0;
   for (const t of input.roadmapTasks) {
-    const bucket = t.track === "AI_ENGINEERING" ? "AI"
+    const bucket = (t.track === "DSA" || t.category === "DSA") ? "DSA"
+      : t.track === "AI_ENGINEERING" ? "AI"
       : t.track === "SOFTWARE_ENGINEERING" ? "SWE"
       : t.track === "GATE_PREP" ? "GATEPREP"
-      : (classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "AI_ENGINEERING" ? "AI" : "SWE");
+      : (classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "AI_ENGINEERING" ? "AI" : classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "DSA" ? "DSA" : "SWE");
     const isDone = t.status === "COMPLETED" || t.status === "PRACTICE";
     if (bucket === "AI") { aiTotal++; if (isDone) aiDone++; }
     else if (bucket === "SWE") { sweTotal++; if (isDone) sweDone++; }
@@ -172,6 +173,7 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     if (t.priority === "OPTIONAL") { currOptional += mins; continue; }
     if (bucket === "AI") aiRemaining += mins;
     else if (bucket === "SWE") sweRemaining += mins;
+    else if (bucket === "DSA") dsaRoadmapRemaining += mins;
     else gatePrepRemaining += mins; // exam-prep tasks pace against the GATE track
   }
   let aiProjRemaining = 0, sweProjRemaining = 0, projOptional = 0;
@@ -252,7 +254,8 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   const remainingByTrack: Record<Track, number> = {
     GATE: gateRemaining + gatePrepRemaining,
     AI_ENGINEERING: aiRemaining + aiProjRemaining,
-    SOFTWARE_ENGINEERING: sweRemaining + sweProjRemaining + practiceRemaining,
+    SOFTWARE_ENGINEERING: sweRemaining + sweProjRemaining,
+    DSA: practiceRemaining + dsaRoadmapRemaining,
   };
   const optionalMinutes = currOptional + projOptional;
   // Overall horizon = Jan-15 syllabus deadline (114-day window); the Dec-31
