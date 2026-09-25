@@ -38,6 +38,7 @@ import { testDayNumber, TEST_DAYS } from "@/lib/testmode";
 
 const mainNav = [
   { name: "Today", href: "/today", icon: CalendarCheck },
+  { name: "Planner", href: "/planner", icon: Calendar },
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Roadmap", href: "/roadmap", icon: Map },
   { name: "GATE 2027", href: "/gate", icon: BookOpen },
@@ -64,6 +65,7 @@ const navItems = [...mainNav, ...secondaryNav];
 
 const PAGE_LABELS: Record<string, string> = {
   "/today": "Today",
+  "/planner": "Planner",
   "/dashboard": "Dashboard",
   "/roadmap": "Roadmap",
   "/gate": "GATE 2027",

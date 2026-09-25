@@ -162,7 +162,10 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
+            <p className="mt-1.5 text-[11px] text-gray-500">Flexible divides your daily capacity across the windows below. Fixed respects exact clock times. Both use the 6h / 7h / 8h model.</p>
           </div>
+
+          <StudyWindowsEditor />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -421,7 +424,7 @@ function InstallSection() {
   };
 
   if (state === "checking") return <p className="text-xs text-gray-500">Checking install support…</p>;
-  if (state === "installed") return <p className="text-xs font-bold text-emerald-400">✓ StudyForge is installed — running as an app.</p>;
+  if (state === "installed") return <p className="text-xs font-bold text-emerald-400">StudyForge is installed — running as an app.</p>;
   return (
     <div>
       <p className="text-xs text-gray-400 mb-3">StudyForge works better as an installed app — fullscreen, home-screen icon, offline shell.</p>
@@ -432,6 +435,98 @@ function InstallSection() {
       ) : (
         <p className="text-xs text-gray-500">Use the browser version — your browser doesn&apos;t offer installation right now. Chrome/Edge on desktop or Android do.</p>
       )}
+    </div>
+  );
+}
+
+function StudyWindowsEditor() {
+  const [windows, setWindows] = useState<{ label: string; start: string; end: string }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/dashboard")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const raw = d?.user?.settings?.preferredSittings;
+        try {
+          const arr = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(arr) && arr.length > 0) setWindows(arr);
+          else setWindows([
+            { label: "Morning", start: "10:30", end: "13:30" },
+            { label: "Afternoon", start: "15:00", end: "16:00" },
+            { label: "Evening", start: "18:00", end: "19:00" },
+            { label: "Night", start: "21:00", end: "22:00" },
+          ]);
+        } catch {
+          setWindows([
+            { label: "Morning", start: "10:30", end: "13:30" },
+            { label: "Afternoon", start: "15:00", end: "16:00" },
+            { label: "Evening", start: "18:00", end: "19:00" },
+            { label: "Night", start: "21:00", end: "22:00" },
+          ]);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredSittings: windows }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setMsg("Study windows saved — Planner will use them immediately.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Save failed");
+    } finally { setSaving(false); }
+  };
+
+  if (!loaded) return <p className="text-xs text-gray-500">Loading study windows…</p>;
+
+  const totalMin = windows.reduce((a, w) => {
+    const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const s = toMin(w.start), e = toMin(w.end);
+    return a + (e > s ? e - s : 0);
+  }, 0);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-xs font-bold text-gray-200">Study windows — when you study each day</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-gray-400">Your configured blocks are divided into timed sessions. Example below mirrors your 10:30–1:30 deep block. Total must not exceed your daily target.</p>
+      <div className="mt-3 space-y-2">
+        {windows.map((w, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <select value={w.label} onChange={(e) => setWindows((arr) => arr.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+              className="w-28 rounded-lg border border-border bg-border/30 px-2 py-2 text-xs font-bold text-gray-200">
+              {["Morning", "Midday", "Afternoon", "Evening", "Night"].map((o) => <option key={o}>{o}</option>)}
+            </select>
+            <input type="time" value={w.start} onChange={(e) => setWindows((arr) => arr.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-border/30 px-2 py-2 text-xs text-card-foreground" />
+            <span className="text-xs text-gray-500">→</span>
+            <input type="time" value={w.end} onChange={(e) => setWindows((arr) => arr.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))}
+              className="min-w-0 flex-1 rounded-lg border border-border bg-border/30 px-2 py-2 text-xs text-card-foreground" />
+            <button type="button" onClick={() => setWindows((arr) => arr.filter((_, j) => j !== i))}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border text-gray-400 hover:bg-border/40" aria-label={`Remove ${w.label}`}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button type="button" onClick={() => setWindows((arr) => [...arr, { label: "Evening", start: "18:00", end: "19:00" }])}
+          className="rounded-lg border border-border bg-border/20 px-3 py-1.5 text-xs font-bold text-gray-300">+ Add window</button>
+        <span className="text-[11px] text-gray-500">{Math.floor(totalMin / 60)}h {totalMin % 60}m total</span>
+      </div>
+      <button type="button" onClick={save} disabled={saving}
+        className="mt-3 w-full rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white hover:bg-accent-hover disabled:opacity-50">
+        {saving ? "Saving…" : "Save study windows"}
+      </button>
+      {msg && <p className="mt-2 text-xs text-gray-300">{msg}</p>}
     </div>
   );
 }

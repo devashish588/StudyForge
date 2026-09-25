@@ -28,6 +28,7 @@ export default function CommandPalette({ isOpen, onClose }: CommandPaletteProps)
     { group: "Study", title: "Open Study Board", icon: Clock, action: () => go("/board") },
     { group: "Navigate", title: "Open Today's Plan", icon: CheckSquare, action: () => go("/today") },
     { group: "Navigate", title: "Open Dashboard", icon: CalendarCheck, action: () => go("/dashboard") },
+    { group: "Navigate", title: "Open Planner (Day/Week/Month)", icon: CalendarCheck, action: () => go("/planner") },
     { group: "Navigate", title: "Open Learn Hub", icon: BookOpen, action: () => go("/learn") },
     { group: "Navigate", title: "Open AI Engineering", icon: BookOpen, action: () => go("/ai-engineering") },
     { group: "Navigate", title: "Open Software Engineering", icon: BookOpen, action: () => go("/software-engineering") },

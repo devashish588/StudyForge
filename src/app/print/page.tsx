@@ -24,6 +24,7 @@ export default function PrintPage() {
     }
   });
   const [mission, setMission] = useState<any>(null);
+  const [planner, setPlanner] = useState<any>(null);
   const [missionFailed, setMissionFailed] = useState(false);
 
   useEffect(() => {
@@ -34,7 +35,12 @@ export default function PrintPage() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("plan"))))
       .then((d) => setMission(d?.mission ?? null))
       .catch(() => setMissionFailed(true));
-  }, [date]);
+    // Same source as Planner — ensures Weekly/Monthly print matches the UI.
+    fetch(`/api/planner?mode=${section === "Monthly" ? "month" : section === "Weekly" ? "week" : "day"}&date=${date}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setPlanner(d ?? null))
+      .catch(() => {});
+  }, [date, section]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -79,6 +85,14 @@ export default function PrintPage() {
                   {(mission.remainingCapacity ?? 0) > 0 ? ` · ${minutesToHM(mission.remainingCapacity)} spare` : ""}
                   {mission.scheduleRisk?.status && mission.scheduleRisk.status !== "ON_TRACK" ? ` · schedule: ${mission.scheduleRisk.status}` : ""}
                 </p>
+                {planner?.sessions && planner.sessions.length > 0 && (
+                  <div className="space-y-1 pt-2 border-t border-black">
+                    <p className="text-xs font-black uppercase">Session schedule — {planner.sessions.length} timed blocks</p>
+                    {planner.sessions.map((s: { label: string; start: string; end: string; track: string; topic: string; purpose: string; items: { title: string }[] }) => (
+                      <CheckRow key={s.label} title={`${s.start}–${s.end} · ${s.label} · ${s.track} — ${s.topic}`} sub={`${s.purpose.toLowerCase()} · ${s.items.map((i: { title: string }) => i.title).join(" · ")}`} />
+                    ))}
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -106,10 +120,21 @@ export default function PrintPage() {
 
         {section === "Weekly" && (
           <div className="space-y-2">
-            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Weekly Task Checklist</h2>
-            {tasks.slice(0, 14).map((t) => (
-              <CheckRow key={t.id} title={t.title} sub={`${t.category} • ${t.practiceReq || ""}`} right={t.blockLabel || t.sitting} />
-            ))}
+            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Weekly Plan — {planner?.weeks?.[0]?.weekLabel ?? "this week"}</h2>
+            {planner?.weeks ? (
+              <>
+                <p className="text-[11px] text-gray-600">Target {minutesToHM(planner.weeks[0].targetMinutes)} · {planner.weeks[0].milestone}</p>
+                {planner.weeks[0].days.map((d: { date: string; plannedMinutes: number }) => (
+                  <CheckRow key={d.date} title={d.date} sub={`${minutesToHM(d.plannedMinutes)} planned`} />
+                ))}
+              </>
+            ) : (
+              <>
+                {tasks.slice(0, 14).map((t) => (
+                  <CheckRow key={t.id} title={t.title} sub={`${t.category} • ${t.practiceReq || ""}`} right={t.blockLabel || t.sitting} />
+                ))}
+              </>
+            )}
             <div className="border-2 border-dashed border-gray-400 p-4 rounded min-h-[100px]">
               <p className="text-xs font-bold text-gray-700 uppercase">Weekly reflection: went well / badly / change / weak topics</p>
             </div>
@@ -118,10 +143,25 @@ export default function PrintPage() {
 
         {section === "Monthly" && (
           <div className="space-y-2">
-            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Monthly Milestones</h2>
-            {["DSA Foundation", "Full Stack", "ML", "GenAI + RAG", "Agents + DevOps", "GATE mocks", "Final ship"].map((m) => (
-              <CheckRow key={m} title={m} sub="completion %: ____" />
-            ))}
+            <h2 className="text-base font-bold uppercase border-b border-black pb-1">Monthly Milestones — via Planner</h2>
+            {planner?.months ? (
+              <>
+                {planner.months.map((m: { key: string; label: string; milestone: string; majorModules: { label: string }[] }) => (
+                  <div key={m.key} className="space-y-1">
+                    <p className="text-xs font-black uppercase">{m.label} — {m.milestone}</p>
+                    {m.majorModules.slice(0, 4).map((mod: { label: string }) => (
+                      <CheckRow key={mod.label} title={mod.label} sub="planned topic" />
+                    ))}
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                {["DSA Foundation", "Full Stack", "ML", "GenAI + RAG", "Agents + DevOps", "GATE mocks", "Final ship"].map((m) => (
+                  <CheckRow key={m} title={m} sub="completion %: ____" />
+                ))}
+              </>
+            )}
           </div>
         )}
 
