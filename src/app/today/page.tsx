@@ -357,7 +357,6 @@ export default function TodayPage() {
               </div>
               <ul className="mt-3 space-y-1">
                 {g.subs.map((s) => {
-                  const locked = s.done && isCanonicalRef(s);
                   const pyqPending = s.kind === "GATE" && s.refType === "pyqSet" && !s.done && (s.pyqDone ?? 0) < (s.pyqTarget ?? 10);
                   return (
                     <li key={s.id}>
@@ -365,10 +364,10 @@ export default function TodayPage() {
                         <input
                           type="checkbox"
                           checked={s.done}
-                          disabled={locked || pendingId === s.id || pyqPending}
+                          disabled={pendingId === s.id || pyqPending}
                           onChange={() => { if (s.done) void uncheckSubtopic(s); else void completeSubtopic(s); }}
                           aria-label={`${s.title}${s.done ? ", completed" : ""}`}
-                          title={locked ? "Recorded as complete in backend" : pyqPending ? `Log PYQs to complete (${s.pyqDone ?? 0}/${s.pyqTarget ?? 10})` : `Mark ${s.done ? "not done" : "done"}`}
+                          title={pyqPending ? `Log PYQs to complete (${s.pyqDone ?? 0}/${s.pyqTarget ?? 10})` : `Mark ${s.done ? "not done" : "done"}`}
                           className="h-6 w-6 shrink-0 cursor-pointer accent-emerald-500 disabled:cursor-default"
                         />
                         <span className="min-w-0 flex-1">
@@ -406,7 +405,7 @@ export default function TodayPage() {
                   <input
                     type="checkbox"
                     checked={s.done}
-                    disabled={(s.done && isCanonicalRef(s)) || pendingId === s.id}
+                    disabled={pendingId === s.id}
                     onChange={() => { if (s.done) void uncheckSubtopic(s); else void completeSubtopic(s); }}
                     aria-label={`${s.title}${s.done ? ", completed" : ""}`}
                     className="h-6 w-6 shrink-0 cursor-pointer accent-emerald-500 disabled:cursor-default"
