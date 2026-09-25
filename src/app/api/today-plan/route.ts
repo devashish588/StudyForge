@@ -652,16 +652,134 @@ export async function POST(req: Request) {
 
 /* ---------------- PATCH: item/notebook/doubt/goal/lock/feedback ops ---------------- */
 
-function findItem(day: { mustDoJson: string; shouldDoJson: string; couldDoJson: string }, itemId: string) {
-  const buckets = [
-    { key: "mustDoJson", items: parseArr<PlanItem>(day.mustDoJson) },
-    { key: "shouldDoJson", items: parseArr<PlanItem>(day.shouldDoJson) },
-    { key: "couldDoJson", items: parseArr<PlanItem>(day.couldDoJson) },
-  ] as const;
-  for (const b of buckets) {
-    const idx = b.items.findIndex((i) => i.id === itemId);
-    if (idx >= 0) return { bucket: b.key as "mustDoJson" | "shouldDoJson" | "couldDoJson", items: b.items, idx };
+async function findOrResolveItem(
+  day: { mustDoJson: string; shouldDoJson: string; couldDoJson: string },
+  itemId: string | undefined | null,
+  date: string
+): Promise<{ bucket: "mustDoJson" | "shouldDoJson" | "couldDoJson"; items: PlanItem[]; idx: number } | null> {
+  if (!itemId) return null;
+
+  const buckets = {
+    mustDoJson: parseArr<PlanItem>(day.mustDoJson),
+    shouldDoJson: parseArr<PlanItem>(day.shouldDoJson),
+    couldDoJson: parseArr<PlanItem>(day.couldDoJson),
+  };
+
+  const parts = itemId.split(":");
+  const extractedRefId = parts[parts.length - 1];
+
+  // 1. Direct ID match
+  for (const key of ["mustDoJson", "shouldDoJson", "couldDoJson"] as const) {
+    const items = buckets[key];
+    const idx = items.findIndex((i) => i.id === itemId);
+    if (idx >= 0) return { bucket: key, items, idx };
   }
+
+  // 2. refId match
+  for (const key of ["mustDoJson", "shouldDoJson", "couldDoJson"] as const) {
+    const items = buckets[key];
+    const idx = items.findIndex((i) => i.refId === itemId || (i.refId && i.refId === extractedRefId));
+    if (idx >= 0) return { bucket: key, items, idx };
+  }
+
+  // 3. ID endsWith match
+  for (const key of ["mustDoJson", "shouldDoJson", "couldDoJson"] as const) {
+    const items = buckets[key];
+    const idx = items.findIndex((i) => i.id.endsWith(extractedRefId));
+    if (idx >= 0) return { bucket: key, items, idx };
+  }
+
+  // 4. Resolve from canonical source tables (RoadmapTask, GateTopic, ProjectTask, RevisionItem)
+  const targetRefId = extractedRefId.length >= 5 ? extractedRefId : itemId;
+
+  // Check RoadmapTask
+  const rTask = await prisma.roadmapTask.findUnique({ where: { id: targetRefId } });
+  if (rTask) {
+    const newItem: PlanItem = {
+      id: itemId,
+      kind: rTask.category === "GATE" ? "GATE" : "ROADMAP",
+      tier: "MUST",
+      title: rTask.title,
+      detail: rTask.category ? `${rTask.category} · ${rTask.title}` : rTask.title,
+      minutes: rTask.remainingMinutes ?? rTask.estimatedTimeMinutes,
+      refType: "roadmapTask",
+      refId: rTask.id,
+      track: (rTask.track as PlanItem["track"]) || (rTask.category === "DSA" ? "DSA" : rTask.category === "GATE" ? "GATE" : "SOFTWARE_ENGINEERING"),
+      why: "Canonical curriculum goal",
+      done: rTask.status === "COMPLETED",
+      fitted: true,
+    };
+    buckets.mustDoJson.push(newItem);
+    await persistBuckets(date, buckets);
+    return { bucket: "mustDoJson", items: buckets.mustDoJson, idx: buckets.mustDoJson.length - 1 };
+  }
+
+  // Check GateTopic
+  const gTopic = await prisma.gateTopic.findUnique({ where: { id: targetRefId } });
+  if (gTopic) {
+    const newItem: PlanItem = {
+      id: itemId,
+      kind: "GATE",
+      tier: "MUST",
+      title: gTopic.name,
+      detail: `GATE · ${gTopic.name}`,
+      minutes: gTopic.estimatedMinutes,
+      refType: "gateTopic",
+      refId: gTopic.id,
+      track: "GATE",
+      why: "Canonical GATE topic",
+      done: gTopic.completed,
+      fitted: true,
+    };
+    buckets.mustDoJson.push(newItem);
+    await persistBuckets(date, buckets);
+    return { bucket: "mustDoJson", items: buckets.mustDoJson, idx: buckets.mustDoJson.length - 1 };
+  }
+
+  // Check ProjectTask
+  const pTask = await prisma.projectTask.findUnique({ where: { id: targetRefId } });
+  if (pTask) {
+    const newItem: PlanItem = {
+      id: itemId,
+      kind: "PROJECT",
+      tier: "MUST",
+      title: pTask.title,
+      detail: `Project · ${pTask.title}`,
+      minutes: pTask.estimatedMinutes,
+      refType: "projectTask",
+      refId: pTask.id,
+      track: "SOFTWARE_ENGINEERING",
+      why: "Canonical project milestone",
+      done: pTask.completed,
+      fitted: true,
+    };
+    buckets.mustDoJson.push(newItem);
+    await persistBuckets(date, buckets);
+    return { bucket: "mustDoJson", items: buckets.mustDoJson, idx: buckets.mustDoJson.length - 1 };
+  }
+
+  // Check RevisionItem
+  const revItem = await prisma.revisionItem.findUnique({ where: { id: targetRefId } });
+  if (revItem) {
+    const newItem: PlanItem = {
+      id: itemId,
+      kind: "REVISION",
+      tier: "SHOULD",
+      title: revItem.title,
+      detail: `Revision · ${revItem.title}`,
+      minutes: 30,
+      refType: "revisionItem",
+      refId: revItem.id,
+      track: revItem.category === "GATE" ? "GATE" : "SOFTWARE_ENGINEERING",
+      why: "Spaced repetition revision",
+      done: false,
+      fitted: true,
+    };
+    buckets.shouldDoJson.push(newItem);
+    await persistBuckets(date, buckets);
+    return { bucket: "shouldDoJson", items: buckets.shouldDoJson, idx: buckets.shouldDoJson.length - 1 };
+  }
+
   return null;
 }
 
@@ -809,15 +927,19 @@ export async function PATCH(req: Request) {
 
     switch (action) {
       case "toggle-item": {
-        const found = findItem(day, body.itemId);
+        const found = await findOrResolveItem(day, body.itemId, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         buckets[found.bucket][found.idx] = { ...buckets[found.bucket][found.idx], done: Boolean(body.done) };
         await persistBuckets(date, buckets);
+        if (Boolean(body.done)) {
+          const cur = buckets[found.bucket][found.idx];
+          await mirrorAtomicProgress(cur, cur.minutes, 0, 100, date);
+        }
         break;
       }
       case "update-item": {
         // Edit title/minutes/tier — never triggers regeneration.
-        const found = findItem(day, body.item?.id);
+        const found = await findOrResolveItem(day, body.item?.id, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         const cur = buckets[found.bucket][found.idx];
         const patch = body.item as Partial<PlanItem>;
@@ -893,7 +1015,7 @@ export async function PATCH(req: Request) {
         break;
       }
       case "remove-item": {
-        const found = findItem(day, body.itemId);
+        const found = await findOrResolveItem(day, body.itemId, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         buckets[found.bucket].splice(found.idx, 1);
         await persistBuckets(date, buckets);
@@ -901,7 +1023,7 @@ export async function PATCH(req: Request) {
       }
       case "move-tomorrow": {
         // Carry into tomorrow's candidate pool (SHOULD), never forced MUST.
-        const found = findItem(day, body.itemId);
+        const found = await findOrResolveItem(day, body.itemId, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         const [moved] = buckets[found.bucket].splice(found.idx, 1);
         await persistBuckets(date, buckets);
@@ -980,7 +1102,7 @@ export async function PATCH(req: Request) {
         // the rolling adaptation window. Never overrides dependency order.
         const rating = String(body.rating ?? "");
         if (!["Easy", "Normal", "Hard"].includes(rating)) return NextResponse.json({ error: "Invalid rating" }, { status: 400 });
-        const found = findItem(day, body.itemId);
+        const found = await findOrResolveItem(day, body.itemId, date);
         const titleMatch = found
           ? (buckets[found.bucket][found.idx].topicName
             ? `${buckets[found.bucket][found.idx].subjectName ?? ""} — ${buckets[found.bucket][found.idx].topicName}`
@@ -1015,7 +1137,7 @@ export async function PATCH(req: Request) {
         // Explicit done=true means "user finished this": force remaining 0 /
         // pct 100 even if the item carries stale atomic residue, mirroring
         // the close-day completed branch (never silently un-complete).
-        const found = findItem(day, body.itemId);
+        const found = await findOrResolveItem(day, body.itemId, date);
         if (!found) return NextResponse.json({ error: "Plan item not found" }, { status: 404 });
         const cur = buckets[found.bucket][found.idx];
         const explicitDone = body.done === true;

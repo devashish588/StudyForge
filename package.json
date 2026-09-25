@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate deploy",
     "test:mission": "npx ts-node -P scripts/tsconfig.test.json scripts/mission-metrics.test.ts",
     "test:curriculum": "npx ts-node -P scripts/tsconfig.test.json scripts/curriculum-pacing.test.ts",
-    "test:prereq": "npx ts-node -P scripts/tsconfig.test.json scripts/prereq-gating.test.ts"
+    "test:prereq": "npx ts-node -P scripts/tsconfig.test.json scripts/prereq-gating.test.ts",
+    "test:completion": "npx ts-node -P scripts/tsconfig.test.json scripts/checklist-completion.test.ts"
   },
   "prisma": {
     "seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
