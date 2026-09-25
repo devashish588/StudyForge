@@ -154,17 +154,17 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
       {/* 1 — HERO */}
       <header className="pt-4 md:pt-8">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">
+        <p className="type-label !text-indigo-300">
           {greeting()}, {data.user.name}
         </p>
-        <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-white md:text-5xl">
+        <h1 className="type-display mt-2">
           {formatDisplay(studyDay.date)}
         </h1>
-        <p className="mt-2 text-lg text-gray-400">
+        <p className="type-body mt-2 text-lg">
           Day {programDay} / 99 &nbsp;·&nbsp; {window.daysLeft} days to December 31
         </p>
         <div className="mt-5 max-w-md">
-          <ProgressBar value={Math.round((programDay / 99) * 100)} color="bg-gradient-to-r from-indigo-500 to-emerald-400" heightClass="h-2" />
+          <ProgressBar value={Math.round((programDay / 99) * 100)} label="Program progress" color="bg-gradient-to-r from-indigo-500 to-emerald-400" heightClass="h-2" />
         </div>
         <div className="mt-8 flex items-end gap-4">
           <span className="text-6xl leading-none" role="img" aria-label="streak flame">🔥</span>
@@ -188,18 +188,18 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 1b — schedule update notice (compact, persistent, no duplicates) */}
+      {/* 1b — recovery notice (neutral, operational language only) */}
       {data.carryNotice?.hasCarry && (
-        <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 animate-fadeIn" role="status" aria-label="Schedule update">
-          <p className="text-xs font-extrabold uppercase tracking-widest text-amber-300">⚠ Schedule update</p>
+        <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 animate-fadeIn" role="status" aria-label="Recovery">
+          <p className="type-label !text-amber-300">Recovery</p>
           <p className="mt-1 text-sm text-gray-200">
-            You left {data.carryNotice.count} item{data.carryNotice.count === 1 ? "" : "s"} unfinished on {data.carryNotice.prevDate.slice(5)}.
-            Added to today ({minutesToHM(data.carryNotice.minutes)} carry-over):
+            {minutesToHM(data.carryNotice.minutes)} carried forward from {data.carryNotice.prevDate.slice(5)} ({data.carryNotice.count} item{data.carryNotice.count === 1 ? "" : "s"}):
           </p>
           <ul className="mt-2 space-y-1 text-sm text-gray-300">
-            {data.carryNotice.items.map((i, idx) => <li key={idx}>• {i.title} <span className="font-mono text-amber-300/80">· {i.minutes}m</span></li>)}
+            {data.carryNotice.items.map((i, idx) => <li key={idx}>• {i.title} <span className="font-mono text-amber-300/80">· {i.minutes}m remaining</span></li>)}
           </ul>
-          <Link href="/today" className="mt-3 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white">View today&apos;s plan</Link>
+          <p className="mt-2 text-xs text-gray-400">Today&apos;s schedule includes this automatically.</p>
+          <Link href="/today" className="mt-3 inline-block min-h-[44px] rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-white transition-colors duration-200 motion-reduce:transition-none hover:bg-accent-hover">View today</Link>
         </section>
       )}
 
@@ -259,6 +259,39 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* 1e — THIS WEEK: planned vs actual vs execution (from existing payload only) */}
+      {(() => {
+        const weekActual = data.last7.reduce((a, d) => a + d.minutes, 0);
+        const weekPlanned = target * 7;
+        const execPct = weekPlanned > 0 ? Math.round((weekActual / weekPlanned) * 100) : 0;
+        const activeDays7 = data.last7.filter((d) => d.minutes >= 180).length;
+        return (
+          <section aria-label="This week">
+            <div className="flex items-baseline justify-between">
+              <h2 className="type-h2">This week</h2>
+              <span className="type-metadata">{activeDays7}/7 active days</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2.5">
+              <div className="surface-muted min-w-0 px-3 py-2.5">
+                <p className="type-label">Planned</p>
+                <p className="mt-1 truncate text-sm font-bold text-white">{minutesToHM(weekPlanned)}</p>
+              </div>
+              <div className="surface-muted min-w-0 px-3 py-2.5">
+                <p className="type-label">Actual</p>
+                <p className="mt-1 truncate text-sm font-bold text-white">{minutesToHM(weekActual)}</p>
+              </div>
+              <div className="surface-muted min-w-0 px-3 py-2.5">
+                <p className="type-label">Execution</p>
+                <p className={`mt-1 truncate text-sm font-bold ${execPct >= 80 ? "text-emerald-400" : execPct >= 50 ? "text-amber-300" : "text-gray-300"}`}>{execPct}%</p>
+              </div>
+            </div>
+            <div className="mt-2.5">
+              <ProgressBar value={execPct} label="This week execution" heightClass="h-2" />
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Two timelines: BUILD (skills → Dec 31) + CRACK (GATE → Feb 2027) */}
       <section className="grid grid-cols-2 gap-3">

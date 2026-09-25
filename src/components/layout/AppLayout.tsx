@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import CommandPalette from "@/components/ui/CommandPalette";
 import TimerModal from "@/components/ui/TimerModal";
+import { StudyForgeIcon } from "@/components/ui/StudyForgeIcon";
 import { testDayNumber, TEST_DAYS } from "@/lib/testmode";
 
 const mainNav = [
@@ -210,10 +211,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="no-print hidden md:flex flex-col w-64 border-r border-border bg-card p-4 shrink-0 sticky top-0 h-screen overflow-y-auto">
         {/* Brand Header */}
         <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
-          <Link href="/today" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-lg shadow-md">
-              S
-            </div>
+          <Link href="/today" className="flex items-center gap-2.5">
+            <StudyForgeIcon size={34} className="rounded-lg shadow-md" />
             <div>
               <h1 className="font-bold text-base tracking-tight leading-none text-card-foreground">StudyForge</h1>
               <p className="text-[10px] text-muted-foreground text-gray-400 mt-0.5">Master GATE • Ship Projects</p>
@@ -250,13 +249,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition ${
+                aria-current={isActive ? "page" : undefined}
+                className={`relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-200 motion-reduce:transition-none ${
                   isActive
-                    ? "bg-accent text-white shadow-sm"
+                    ? "bg-accent/15 font-bold text-accent"
                     : "text-gray-400 hover:text-foreground hover:bg-border/30"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                {isActive && <span aria-hidden className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-accent" />}
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 {item.name}
               </Link>
             );
@@ -272,13 +273,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition ${
+                aria-current={isActive ? "page" : undefined}
+                className={`relative flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-colors duration-200 motion-reduce:transition-none ${
                   isActive
-                    ? "bg-accent text-white shadow-sm"
+                    ? "bg-accent/15 font-bold text-accent"
                     : "text-gray-400 hover:text-foreground hover:bg-border/30"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                {isActive && <span aria-hidden className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-accent" />}
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 {item.name}
               </Link>
             );
@@ -311,23 +314,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Mobile Top Bar */}
       <header className="no-print pt-safe md:hidden flex items-center justify-between p-4 bg-card border-b border-border sticky top-0 z-40">
         <Link href="/today" className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">
-            S
-          </div>
+          <StudyForgeIcon size={28} className="rounded-md" />
           <span className="font-bold text-sm text-card-foreground">StudyForge</span>
         </Link>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setTimerOpen(true)}
-            className="p-2 rounded-lg bg-accent/10 border border-accent/20 text-accent"
+            aria-label="Start focus session"
+            className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent/10 border border-accent/20 text-accent"
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4" aria-hidden />
           </button>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-lg border border-border text-gray-300"
+            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileMenuOpen}
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-border text-gray-300"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" aria-hidden /> : <Menu className="w-5 h-5" aria-hidden />}
           </button>
         </div>
       </header>
@@ -337,7 +341,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="no-print md:hidden fixed inset-0 z-50 bg-background/95 backdrop-blur-md p-6 flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between pb-4 border-b border-border mb-4">
             <span className="font-bold text-lg text-card-foreground">StudyForge Navigation</span>
-            <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-gray-400">
+            <button onClick={() => setMobileMenuOpen(false)} className="flex h-11 w-11 items-center justify-center text-gray-400" aria-label="Close navigation menu">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -392,7 +396,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Mobile Bottom Navigation: Today / Learn / Build / Review / More */}
-      <nav className="no-print pb-safe md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border flex items-center justify-around py-2 px-1">
+      <nav aria-label="Primary mobile" className="no-print pb-safe md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border flex items-stretch justify-around px-1">
         {bottomTabs.map((t) => {
           const Icon = t.icon;
           const active = t.href === "/learn"
@@ -403,14 +407,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 ? pathname.startsWith("/revision")
                 : pathname === t.href;
           return (
-            <Link key={t.href} href={t.href} className={`flex flex-col items-center gap-0.5 text-[10px] min-w-[56px] py-1 ${active ? "text-accent font-bold" : "text-gray-400"}`}>
-              <Icon className="w-4 h-4" />
+            <Link key={t.href} href={t.href} aria-current={active ? "page" : undefined} className={`relative flex min-h-[60px] min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[10px] ${active ? "text-accent font-bold" : "text-gray-400"}`}>
+              {active && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent" />}
+              <Icon className="h-5 w-5" aria-hidden />
               <span>{t.name}</span>
             </Link>
           );
         })}
-        <button onClick={() => setMoreOpen(true)} className="flex flex-col items-center gap-0.5 text-[10px] min-w-[56px] py-1 text-gray-400">
-          <MoreHorizontal className="w-4 h-4" />
+        <button onClick={() => setMoreOpen(true)} aria-haspopup="dialog" className="flex min-h-[60px] min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-1 text-[10px] text-gray-400">
+          <MoreHorizontal className="h-5 w-5" aria-hidden />
           <span>More</span>
         </button>
       </nav>
@@ -422,7 +427,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="relative w-full bg-card border-t border-border rounded-t-2xl p-4 pb-8 pb-safe animate-fadeIn max-h-[70vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-bold text-card-foreground">More</span>
-              <button onClick={() => setMoreOpen(false)} className="p-2 text-gray-400" aria-label="Close more menu">
+              <button onClick={() => setMoreOpen(false)} className="flex h-11 w-11 items-center justify-center text-gray-400" aria-label="Close more menu">
                 <X className="w-5 h-5" />
               </button>
             </div>

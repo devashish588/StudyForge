@@ -96,10 +96,10 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       <div className="border-b border-border pb-4">
-        <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
-          <BarChart3 className="w-7 h-7 text-accent" /> Productivity & Execution Analytics
+        <h1 className="type-h1 flex items-center gap-2">
+          <BarChart3 className="h-7 w-7 text-accent" aria-hidden /> Productivity & Execution Analytics
         </h1>
-        <p className="text-xs text-gray-400 mt-1">Every chart reads live database data. No decorative metrics.</p>
+        <p className="type-metadata mt-1">Every chart reads live database data. No decorative metrics.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

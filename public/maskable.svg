@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="mask-bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#181A26" />
+      <stop offset="60%" stop-color="#0F1017" />
+      <stop offset="100%" stop-color="#07070B" />
+    </radialGradient>
+
+    <linearGradient id="m-left-blade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818CF8" />
+      <stop offset="100%" stop-color="#4F46E5" />
+    </linearGradient>
+    <linearGradient id="m-right-blade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#3730A3" />
+    </linearGradient>
+    <linearGradient id="m-apex" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#EEF2FF" />
+      <stop offset="100%" stop-color="#818CF8" />
+    </linearGradient>
+    <linearGradient id="m-amber" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#B45309" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full Bleed Square (Required for Maskable icons) -->
+  <rect width="512" height="512" fill="url(#mask-bg)" />
+
+  <!-- Scaled Icon inside Safe Zone (Scaled 0.65 centered) -->
+  <g transform="translate(256, 256) scale(0.66) translate(-256, -256)">
+    <polygon points="256,64 300,108 256,152 212,108" fill="url(#m-apex)" />
+    <path d="M 196,124 L 144,176 L 144,336 L 196,388 L 236,348 L 236,296 L 196,256 L 236,216 L 236,164 Z" fill="url(#m-left-blade)" />
+    <path d="M 316,124 L 368,176 L 368,336 L 316,388 L 276,348 L 276,296 L 316,256 L 276,216 L 276,164 Z" fill="url(#m-right-blade)" />
+    <polygon points="256,364 316,424 256,456 196,424" fill="#3730A3" />
+    <polygon points="256,196 306,256 256,316 206,256" fill="url(#m-amber)" />
+    <polygon points="256,224 282,256 256,288 230,256" fill="#FFFFFF" />
+  </g>
+</svg>

@@ -18,11 +18,11 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-center md:justify-between">
       <div className="min-w-0">
-        <h1 className="flex items-center gap-3 text-3xl font-extrabold tracking-tight text-card-foreground md:text-[2.75rem] md:leading-[1.1]">
+        <h1 className="type-h1 flex items-center gap-3">
           {icon}
           <span className="truncate">{title}</span>
         </h1>
-        {sub && <p className="mt-2 text-sm text-gray-400">{sub}</p>}
+        {sub && <p className="type-body mt-2 max-w-2xl text-[15px]">{sub}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -32,7 +32,7 @@ export function PageHeader({
 export function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-[13px] font-extrabold uppercase tracking-widest text-gray-400">{title}</h2>
+      <h2 className="type-label">{title}</h2>
       {action}
     </div>
   );
@@ -64,7 +64,7 @@ export function PlainSection({ title, action, children, className }: {
    ICON      : square, for icon-only (44px touch target)
 ------------------------------------------------ */
 
-const baseButton = "inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none min-h-[44px]";
+const baseButton = "inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none min-h-[44px]";
 
 export function PrimaryButton({
   children, onClick, type, className, disabled,
@@ -145,6 +145,43 @@ export function IconButton({
   );
 }
 
+/* ---------- Form controls (Phase 15: single theme-safe set, never regressed) ---------- */
+
+const fieldCls =
+  "w-full rounded-xl border border-border bg-card px-4 text-[15px] text-card-foreground placeholder:text-gray-500 transition-colors duration-200 focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 min-h-[44px] disabled:opacity-70";
+
+export function Input({ label, id, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
+  const inputId = id ?? (label ? `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined);
+  return (
+    <div className="min-w-0">
+      {label && <label htmlFor={inputId} className="type-label mb-1.5 block">{label}</label>}
+      <input id={inputId} {...props} className={cn(fieldCls, "py-2.5", props.className)} />
+    </div>
+  );
+}
+
+export function Textarea({ label, id, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { label?: string }) {
+  const inputId = id ?? (label ? `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined);
+  return (
+    <div className="min-w-0">
+      {label && <label htmlFor={inputId} className="type-label mb-1.5 block">{label}</label>}
+      <textarea id={inputId} {...props} className={cn(fieldCls, "py-3 leading-relaxed", props.className)} />
+    </div>
+  );
+}
+
+export function Select({ label, id, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { label?: string }) {
+  const inputId = id ?? (label ? `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined);
+  return (
+    <div className="min-w-0">
+      {label && <label htmlFor={inputId} className="type-label mb-1.5 block">{label}</label>}
+      <select id={inputId} {...props} className={cn(fieldCls, "py-2.5 pr-9", props.className)}>
+        {children}
+      </select>
+    </div>
+  );
+}
+
 /* ---------- Semantic text roles ---------- */
 export function TextPrimary({ children, className }: { children: React.ReactNode; className?: string }) {
   return <span className={cn("text-sm font-semibold text-card-foreground", className)}>{children}</span>;
@@ -210,18 +247,19 @@ export function ChartCard({
 }
 
 export function FilterPills<T extends string>({
-  options, value, onChange, activeClass,
+  options, value, onChange, activeClass, label,
 }: {
-  options: readonly T[]; value: T; onChange: (v: T) => void; activeClass?: string;
+  options: readonly T[]; value: T; onChange: (v: T) => void; activeClass?: string; label?: string;
 }) {
   return (
-    <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-2">
+    <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-2" role="group" aria-label={label ?? "Filter"}>
       {options.map((o) => (
         <button
           key={o}
           onClick={() => onChange(o)}
+          aria-pressed={value === o}
           className={cn(
-            "whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-semibold transition",
+            "min-h-[44px] whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 motion-reduce:transition-none",
             value === o
               ? activeClass ?? "border-accent bg-accent text-white shadow-sm"
               : "border-border bg-card text-gray-400 hover:bg-border/40"
@@ -270,18 +308,20 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 }
 
 export function Tabs<T extends string>({
-  tabs, value, onChange,
+  tabs, value, onChange, label,
 }: {
-  tabs: readonly T[]; value: T; onChange: (v: T) => void;
+  tabs: readonly T[]; value: T; onChange: (v: T) => void; label?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label={label ?? "Tabs"}>
       {tabs.map((t) => (
         <button
           key={t}
+          role="tab"
+          aria-selected={value === t}
           onClick={() => onChange(t)}
           className={cn(
-            "rounded-lg border px-3.5 py-1.5 text-xs font-bold capitalize transition",
+            "min-h-[44px] rounded-lg border px-3.5 py-1.5 text-xs font-bold capitalize transition-colors duration-200 motion-reduce:transition-none",
             value === t ? "border-accent bg-accent text-white" : "border-border bg-card text-gray-400 hover:bg-border/40"
           )}
         >

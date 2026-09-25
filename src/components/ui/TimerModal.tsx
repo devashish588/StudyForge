@@ -207,7 +207,7 @@ export default function TimerModal({ isOpen, onClose, defaultTitle, defaultCateg
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4">
       <div className="bg-card border border-border rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 sm:p-6 relative shadow-2xl max-h-[92vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white" aria-label="Close timer">
+        <button onClick={onClose} className="absolute top-4 right-4 flex h-11 w-11 items-center justify-center text-gray-400 hover:text-white" aria-label="Close timer">
           <X className="w-5 h-5" />
         </button>
 

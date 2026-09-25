@@ -75,11 +75,11 @@ export default function LearnPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
       <header className="pt-4 md:pt-8">
-        <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-accent">
-          <GraduationCap className="h-4 w-4" /> Learn
+        <p className="type-label flex items-center gap-2 !text-accent">
+          <GraduationCap className="h-4 w-4" aria-hidden /> Learn
         </p>
-        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white md:text-4xl">Four tracks, one plan</h1>
-        <p className="mt-2 text-sm text-gray-400">
+        <h1 className="type-h1 mt-2">Four tracks, one plan</h1>
+        <p className="type-body mt-2 max-w-2xl text-[15px]">
           Today decides the order — these hubs show where each track stands. Execution stays on <Link href="/today" className="font-bold text-accent hover:underline">Today</Link>.
         </p>
       </header>
@@ -97,18 +97,18 @@ export default function LearnPage() {
               <Link
                 key={r.key}
                 href={r.href}
-                className="group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 transition hover:border-accent/40"
+                className="group flex min-h-[64px] items-center gap-4 rounded-2xl border border-border bg-card p-5 transition-colors duration-200 motion-reduce:transition-none hover:border-accent/40"
               >
-                <span className="shrink-0">{ICONS[r.icon]}</span>
+                <span className="shrink-0" aria-hidden>{ICONS[r.icon]}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="text-base font-bold text-white group-hover:underline">{r.label}</span>
-                    <span className="shrink-0 font-mono text-xs text-gray-400">{r.done}/{r.total} · {r.percent}%</span>
+                    <span className="type-metadata shrink-0">{r.done}/{r.total} · {r.percent}%</span>
                   </span>
-                  <span className="mt-2 block"><ProgressBar value={r.percent} heightClass="h-2" /></span>
-                  <span className="mt-1.5 block text-xs text-gray-500">{r.hint}</span>
+                  <span className="mt-2 block"><ProgressBar value={r.percent} label={`${r.label} progress`} heightClass="h-2" /></span>
+                  <span className="type-metadata mt-1.5 block">{r.hint}</span>
                 </span>
-                <ChevronRight className="h-5 w-5 shrink-0 text-gray-500 group-hover:text-accent" />
+                <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-gray-500 group-hover:text-accent" />
               </Link>
             ))}
           </div>

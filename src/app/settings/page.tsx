@@ -91,10 +91,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       <div className="border-b border-border pb-4">
-        <h1 className="text-2xl font-extrabold text-card-foreground flex items-center gap-2">
-          <Settings className="w-7 h-7 text-accent" /> Settings
+        <h1 className="type-h1 flex items-center gap-2">
+          <Settings className="h-7 w-7 text-accent" aria-hidden /> Settings
         </h1>
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="type-metadata mt-1">
           Study targets, planning defaults, appearance, and data. Historical study data never changes when targets change.
         </p>
       </div>

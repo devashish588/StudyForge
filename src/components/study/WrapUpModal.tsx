@@ -58,7 +58,7 @@ export default function WrapUpModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="relative max-h-[92vh] w-full max-w-lg animate-fadeIn overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-2xl sm:p-6">
-        <button onClick={onClose} className="absolute right-4 top-4 p-2 text-gray-400 hover:text-white" aria-label="Close wrap-up">
+        <button onClick={onClose} className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center text-gray-400 hover:text-white" aria-label="Close wrap-up">
           <X className="h-5 w-5" />
         </button>
         <div className="mb-1 flex items-center gap-2">

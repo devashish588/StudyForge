@@ -52,22 +52,45 @@ export default function AiEngineeringPage() {
     <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
       {/* hero: overall progress */}
       <header className="pt-4 md:pt-8">
-        <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">
-          <Brain className="h-4 w-4" /> AI Engineering
+        <p className="type-label flex items-center gap-2 !text-indigo-300">
+          <Brain className="h-4 w-4" aria-hidden /> AI Engineering
         </p>
-        <p className="metric-xl mt-3 text-white">
+        <h1 className="metric-xl mt-3 text-white">
           {data.progress.percent}<span className="text-lg font-semibold text-gray-500">% complete</span>
-        </p>
-        <p className="mt-1 text-sm text-gray-400">
+        </h1>
+        <p className="type-body mt-1 text-[15px]">
           {data.progress.done}/{data.progress.total} tasks · {minutesToHM(data.progress.minutesTotal)} curriculum
           {data.excludedOptional > 0 ? ` · ${data.excludedOptional} optional excluded from pace` : ""}
         </p>
         <div className="mt-4 max-w-md">
-          <ProgressBar value={data.progress.percent} color="bg-gradient-to-r from-indigo-500 to-cyan-400" heightClass="h-2.5" />
+          <ProgressBar value={data.progress.percent} label="AI Engineering progress" color="bg-gradient-to-r from-indigo-500 to-cyan-400" heightClass="h-2" />
         </div>
-        <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold text-gray-300">
-          <Wrench className="h-3.5 w-3.5 text-indigo-300" /> Competency: {competency}
-        </p>
+        
+        {/* Technical Competency Stage Pipeline */}
+        <div className="mt-5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3.5">
+          <p className="type-label !text-indigo-300 mb-2">Competency Pipeline</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono font-bold">
+            {COMPETENCY_ORDER.map((stage, idx) => {
+              const isDone = idx < stageIdx;
+              const isCurrent = idx === stageIdx;
+              return (
+                <div
+                  key={stage}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${
+                    isDone
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : isCurrent
+                      ? "border-indigo-500/40 bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-500/30"
+                      : "border-border/60 bg-border/20 text-gray-500"
+                  }`}
+                >
+                  <span>{stage.toUpperCase()}</span>
+                  <span>{isDone ? "✓" : isCurrent ? "⚡" : "○"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </header>
 
       {/* current / next */}
@@ -98,11 +121,26 @@ export default function AiEngineeringPage() {
 
       {/* pace */}
       <section className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-bold text-gray-200">Schedule status · due {data.pace.deadline}</h3>
+        <h3 className="type-h3">Schedule status · due {data.pace.deadline}</h3>
         <div className="mt-3">
           <PaceStrip pace={data.pace} />
         </div>
       </section>
+
+      {/* needs attention — only when repair flags exist in live data */}
+      {data.groups.some((g) => g.needsRepair) && (
+        <section aria-label="Needs attention">
+          <h2 className="type-h2">Needs attention</h2>
+          <ul className="mt-3 space-y-2">
+            {data.groups.filter((g) => g.needsRepair).map((g) => (
+              <li key={g.key} className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl border border-rose-500/25 bg-rose-500/5 px-4 py-2.5">
+                <span className="min-w-0 truncate text-sm font-semibold text-gray-200">{g.label}</span>
+                <span className="shrink-0 text-xs font-bold text-rose-300">failure repair · {g.done}/{g.total}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* groups */}
       <PlainSection title="Curriculum groups">

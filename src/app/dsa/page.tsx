@@ -78,17 +78,17 @@ export default function DsaPage() {
     <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
       {/* hero: Core 100 progress */}
       <header className="pt-4 md:pt-8">
-        <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-amber-300">
-          <Code2 className="h-4 w-4" /> DSA · Core 100
+        <p className="type-label flex items-center gap-2 !text-amber-300">
+          <Code2 className="h-4 w-4" aria-hidden /> DSA · Core 100
         </p>
-        <p className="metric-xl mt-3 text-white">
+        <h1 className="metric-xl mt-3 text-white">
           {data.core100.solved}<span className="text-lg font-semibold text-gray-500">/{data.core100.total} solved</span>
-        </p>
-        <p className="mt-1 text-sm text-gray-400">
+        </h1>
+        <p className="type-body mt-1 text-[15px]">
           {data.core100.attempted} attempted · primers {data.primers.done}/{data.primers.total}
         </p>
         <div className="mt-4 max-w-md">
-          <ProgressBar value={data.core100.percent} color="bg-gradient-to-r from-amber-500 to-orange-400" heightClass="h-2.5" />
+          <ProgressBar value={data.core100.percent} label="Core 100 progress" color="bg-gradient-to-r from-amber-500 to-orange-400" heightClass="h-2" />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {DIFF_ORDER.map((d) => {

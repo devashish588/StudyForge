@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#0F1017" />
+  
+  <g>
+    <!-- Apex Crown -->
+    <polygon points="256,52 308,104 256,156 204,104" fill="#A5B4FC" />
+
+    <!-- Left Wing -->
+    <path d="M 188,120 L 132,176 L 132,336 L 188,392 L 232,348 L 232,292 L 188,256 L 232,220 L 232,164 Z" fill="#6366F1" />
+
+    <!-- Right Wing -->
+    <path d="M 324,120 L 380,176 L 380,336 L 324,392 L 280,348 L 280,292 L 324,256 L 280,220 L 280,164 Z" fill="#4F46E5" />
+
+    <!-- Lower Base -->
+    <polygon points="256,368 320,432 256,468 192,432" fill="#3730A3" />
+
+    <!-- Central Amber Core Ember -->
+    <polygon points="256,188 312,256 256,324 200,256" fill="#F59E0B" />
+    <polygon points="256,220 284,256 256,292 228,256" fill="#FEF08A" />
+  </g>
+</svg>

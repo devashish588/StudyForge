@@ -16,7 +16,7 @@ import RecoveryModal from "@/components/ui/RecoveryModal";
 import { todayStr, formatDisplay, minutesToHM, getProgramDay, getDaysRemaining } from "@/lib/date";
 import { type FocusPriority } from "@/lib/study";
 import { trackOfPlanItem } from "@/lib/tracks";
-import { TrackBadge } from "@/components/tracks/HubBits";
+import { TrackBadge, WhyThisTask } from "@/components/tracks/HubBits";
 
 interface Block {
   id: string;
@@ -140,7 +140,7 @@ export default function TodayPage() {
   const [tomorrowOpen, setTomorrowOpen] = useState(false);
   const [tomorrowPlan, setTomorrowPlan] = useState<any>(null);
   const [tomorrowLoading, setTomorrowLoading] = useState(false);
-  const [handoff, setHandoff] = useState<{ doneTitle: string; next: PlanItem } | null>(null);
+  const [handoff, setHandoff] = useState<{ doneTitle: string; next: PlanItem; studiedMin?: number; fromPct?: number; toPct?: number; remainingMin?: number } | null>(null);
   const [goalEditing, setGoalEditing] = useState(false);
   const [goalDraft, setGoalDraft] = useState("");
   const [expandedDoubts, setExpandedDoubts] = useState(false);
@@ -148,6 +148,29 @@ export default function TodayPage() {
   const [expandedTomorrow, setExpandedTomorrow] = useState(false);
   const [doubtText, setDoubtText] = useState("");
   const planItemSession = useRef<Record<string, string>>({}); // planItemId -> sessionId
+  // Action receipts (Phase 4: evidence-based feedback, no gamification noise).
+  const [notice, setNotice] = useState<{ text: string; key: number } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Persistence confidence (Phase 6: real save state only, never faked).
+  const [saveState, setSaveState] = useState<{ s: "saving" | "saved" | "error"; at: string | null }>({ s: "saved", at: null });
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    try { setOnline(navigator.onLine); } catch { /* noop */ }
+    const goOff = () => setOnline(false);
+    const goOn = () => setOnline(true);
+    window.addEventListener("offline", goOff);
+    window.addEventListener("online", goOn);
+    return () => { window.removeEventListener("offline", goOff); window.removeEventListener("online", goOn); };
+  }, []);
+
+  useEffect(() => () => { if (noticeTimer.current) clearTimeout(noticeTimer.current); }, []);
+
+  const showNotice = (text: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice({ text, key: Date.now() });
+    noticeTimer.current = setTimeout(() => setNotice(null), 5000);
+  };
 
   const date = todayStr();
 
@@ -263,12 +286,19 @@ export default function TodayPage() {
   /* ---------- plan actions ---------- */
 
   const patchPlan = async (body: Record<string, unknown>) => {
-    const res = await fetch("/api/today-plan", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, ...body }),
-    });
-    if (!res.ok) throw new Error("Plan update failed");
-    await fetchPlan();
+    setSaveState({ s: "saving", at: null });
+    try {
+      const res = await fetch("/api/today-plan", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, ...body }),
+      });
+      if (!res.ok) throw new Error("Plan update failed");
+      await fetchPlan();
+      setSaveState({ s: "saved", at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) });
+    } catch (e) {
+      setSaveState({ s: "error", at: null });
+      throw e;
+    }
   };
 
   const togglePlanItem = async (item: PlanItem) => {
@@ -279,6 +309,7 @@ export default function TodayPage() {
     }
     try {
       await patchPlan({ action: "toggle-item", itemId: item.id, done: !item.done });
+      showNotice(!item.done ? "Marked done — plan recalculated" : "Reopened — plan recalculated");
     } catch {
       if (prev) setPlan(prev);
     }
@@ -287,6 +318,8 @@ export default function TodayPage() {
   const logPartial = async (item: PlanItem, actualMinutes: number, carry: boolean) => {
     try {
       await patchPlan({ action: "log-progress", itemId: item.id, actualMinutes, stopped: true, carry });
+      const remaining = Math.max(0, item.minutes - actualMinutes);
+      showNotice(`${actualMinutes} min logged · ${remaining} min remaining${carry && remaining > 0 ? " · carried forward" : ""}`);
     } catch (e) {
       console.error(e);
     }
@@ -295,6 +328,7 @@ export default function TodayPage() {
   const rateDifficulty = async (item: PlanItem, rating: "Easy" | "Normal" | "Hard") => {
     try {
       await patchPlan({ action: "rate-difficulty", itemId: item.id, rating });
+      showNotice("Difficulty noted — future estimates adapt");
     } catch (e) {
       console.error(e);
     }
@@ -308,7 +342,7 @@ export default function TodayPage() {
       });
       if (res.ok) {
         const { summary } = await res.json();
-        alert(`Day complete — ${summary.completed} done, ${summary.partial} partial, ${summary.missed} missed. Carry-over: ${Math.round(summary.carryOverMinutes / 60 * 10) / 10}h. ${summary.note}`);
+        showNotice(`Day closed — ${summary.completed} done, ${summary.partial} partial, ${summary.missed} remaining · ${Math.round(summary.carryOverMinutes / 60 * 10) / 10}h carried forward`);
       }
     } catch (e) {
       console.error(e);
@@ -343,8 +377,11 @@ export default function TodayPage() {
 
   const onTimerClose = async () => {
     setTimerOpen(false);
-    // Mark plan items whose linked session just completed, then show handoff.
+    // Mark plan items whose linked session just completed, then show an
+    // evidence-based handoff (real minutes + real progress, no invented metrics).
     let justDone: string | null = null;
+    let studiedMin = 0;
+    let fromPct = 0;
     try {
       const res = await fetch(`/api/sessions?date=${date}`);
       if (res.ok) {
@@ -352,11 +389,13 @@ export default function TodayPage() {
         for (const [itemId, sessionId] of Object.entries(planItemSession.current)) {
           const s = sessions.find((x: any) => x.id === sessionId);
           if (s?.completed) {
+            studiedMin = Math.max(studiedMin, s.actualMinutes || 0);
+            const it = plan?.plan.items.find((i) => i.id === itemId);
+            fromPct = it?.completionPercent ?? 0;
             await fetch("/api/today-plan", {
               method: "PATCH", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ date, action: "toggle-item", itemId, done: true }),
             });
-            const it = plan?.plan.items.find((i) => i.id === itemId);
             if (it) justDone = it.title;
             delete planItemSession.current[itemId];
           }
@@ -370,7 +409,11 @@ export default function TodayPage() {
         if (res.ok) {
           const fresh = await res.json();
           const nxt = fresh.nextAction;
-          if (nxt) setHandoff({ doneTitle: justDone, next: nxt });
+          const updated = (fresh.plan?.items ?? []).find((i: PlanItem) => i.title === justDone);
+          const toPct = updated?.completionPercent ?? 100;
+          const remainingMin = Math.max(0, updated?.remainingMinutes ?? 0);
+          if (nxt) setHandoff({ doneTitle: justDone, next: nxt, studiedMin, fromPct, toPct, remainingMin });
+          showNotice(`${studiedMin > 0 ? `${studiedMin} min logged · ` : ""}plan recalculated${remainingMin > 0 ? ` · ${remainingMin} min remaining` : ""}`);
         }
       } catch { /* non-fatal */ }
     }
@@ -454,8 +497,19 @@ export default function TodayPage() {
           <span className="text-gray-600">·</span>
           <span className="text-gray-500">GATE syllabus:</span>
           <span className="font-bold text-purple-300">Jan 15</span>
+          <span className="text-gray-600">·</span>
+          <span className="type-metadata" role="status" aria-label={online ? "Save state" : "Offline"}>
+            {!online ? "Offline" : saveState.s === "saving" ? "Saving…" : saveState.s === "error" ? "Save failed — retry" : saveState.at ? `Saved ${saveState.at}` : ""}
+          </span>
         </div>
       </div>
+
+      {/* action receipt — evidence that StudyForge reacted (auto-dismisses) */}
+      {notice && (
+        <div key={notice.key} role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-4 py-2.5 text-[13px] font-semibold text-emerald-200 animate-fadeIn">
+          {notice.text}
+        </div>
+      )}
 
       {/* 1b — carry-over banner (spec §22): visually distinct, not alarming */}
       {((plan?.mission?.carryOver.length ?? 0) > 0 || items.some((i) => i.movedFrom && !i.done)) && (
@@ -472,7 +526,7 @@ export default function TodayPage() {
               <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
                 <span className="min-w-0 truncate text-gray-300">{c.title} <span className="font-mono text-amber-300/80">· {c.minutes}m</span></span>
                 {!c.done && (
-                  <button onClick={() => startPlanItem(c)} className="shrink-0 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 min-h-[36px]">
+                  <button onClick={() => startPlanItem(c)} className="shrink-0 rounded-lg bg-amber-500/15 border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/25 min-h-[44px] py-2">
                     Start
                   </button>
                 )}
@@ -499,19 +553,19 @@ export default function TodayPage() {
 
       {/* 2 — header: date + target + progress (Today = execution) */}
       <header className="pt-2">
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-indigo-300">Today — execution</p>
-        <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-white md:text-4xl">{formatDisplay(day.date)}</h1>
+        <p className="type-label !text-indigo-300">Today — execution · Day {programDay} / 99</p>
+        <h1 className="type-h1 mt-2">{formatDisplay(day.date)}</h1>
         <p className="mt-3 text-2xl font-extrabold text-white md:text-3xl">
           {minutesToHM(day.actualMinutes)} <span className="text-lg font-semibold text-gray-500">/ {minutesToHM(target)} target</span>
-          {streak && <span className="ml-3 inline-flex items-center gap-1 text-base font-bold text-orange-300"><Flame className="h-4 w-4" /> {streak.current}</span>}
+          {streak && <span className="ml-3 inline-flex items-center gap-1 text-base font-bold text-orange-300"><Flame className="h-4 w-4" aria-hidden /> {streak.current}</span>}
         </p>
         <div className="mt-4">
-          <ProgressBar value={Math.min(100, pct)} color="bg-gradient-to-r from-indigo-500 to-emerald-400" heightClass="h-3" />
+          <ProgressBar value={Math.min(100, pct)} label="Today's target progress" color="bg-gradient-to-r from-indigo-500 to-emerald-400" heightClass="h-2" />
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs font-semibold text-gray-400">
+        <div className="type-metadata mt-2 flex flex-wrap gap-x-6 gap-y-1 font-semibold">
           <span>Time: {Math.min(999, pct)}%</span>
           <span>Objectives: {doneCount}/{items.length} ({objPct}%)</span>
-          {core && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" /> Core complete</span>}
+          {core && <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" aria-hidden /> Core complete</span>}
         </div>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-gray-400">
           Today&apos;s work compounds into your 2027 outcome. <span className="text-gray-300">{plan?.plan.pace && !plan.plan.pace.onPace ? "Behind pace — focus on Must do." : "Stay on Must do to remain on pace."}</span>
@@ -520,7 +574,7 @@ export default function TodayPage() {
 
       {/* 3 — TODAY'S GOAL (primary intent) */}
       <section>
-        <h2 className="text-xl font-bold tracking-tight text-white">Today&apos;s goal</h2>
+        <h2 className="type-h2">Today&apos;s goal</h2>
         {goalEditing ? (
           <div className="mt-3">
             <textarea value={goalDraft} onChange={(e) => setGoalDraft(e.target.value)} rows={2}
@@ -541,21 +595,31 @@ export default function TodayPage() {
         )}
       </section>
 
-      {/* 4 — CURRENT / NEXT ACTION — the ONE dominant CTA */}
+      {/* 4 — TODAY'S FOCUS — the ONE dominant CTA (3-second read) */}
       {plan?.nextAction ? (
-        <section className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 via-card to-card p-6 md:p-8 shadow-sm">
+        <section aria-label="Today's focus" className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 via-card to-card p-6 md:p-8 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" aria-hidden />
-            <p className="text-xs font-extrabold uppercase tracking-widest text-accent">Current focus — start now</p>
+            <p className="type-label !text-accent">Today&apos;s focus</p>
             <TrackBadge track={trackOfPlanItem(plan.nextAction)} />
           </div>
           <h3 className="mt-3 text-2xl font-extrabold leading-tight text-white md:text-3xl">{plan.nextAction.title}</h3>
-          <p className="mt-2 text-sm text-gray-300">{plan.nextAction.detail || `${plan.nextAction.kind} • ${plan.nextAction.minutes} minutes`}</p>
-          <p className="mt-2 text-xs italic text-gray-500">Why today? {plan.nextAction.why}</p>
-          <button onClick={() => startPlanItem(plan.nextAction!)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-accent-hover min-h-[52px]">
-            <Play className="h-5 w-5" /> START NEXT SESSION
+          <p className="mt-2 font-mono text-sm font-bold text-gray-200">
+            {minutesToHM(plan.nextAction.remainingMinutes ?? plan.nextAction.minutes)}
+            {plan.nextAction.detail ? <span className="ml-2 font-sans text-[13px] font-normal text-gray-400">{plan.nextAction.detail}</span> : null}
+          </p>
+          <WhyThisTask
+            signals={{
+              carryOverCount: plan.nextAction.carryOverCount,
+              movedFrom: plan.nextAction.movedFrom,
+              priority: plan.nextAction.priority,
+              kind: plan.nextAction.kind,
+              why: plan.nextAction.why,
+            }}
+          />
+          <button onClick={() => startPlanItem(plan.nextAction!)} className="mt-6 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 py-4 text-base font-extrabold text-white shadow-md transition-colors duration-200 motion-reduce:transition-none hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+            <Play className="h-5 w-5" /> START SESSION
           </button>
-          <p className="mt-2 text-center text-xs text-gray-500">The most important next step — everything else is secondary</p>
         </section>
       ) : items.length > 0 ? (
         <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6 text-center md:p-8">
@@ -569,7 +633,7 @@ export default function TodayPage() {
       {plan?.mission && (
         <section aria-label="Today's mission">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-bold tracking-tight text-white">Today&apos;s mission</h2>
+            <h2 className="type-h2">Today&apos;s mission</h2>
             <span className="text-xs font-semibold text-gray-500">
               {minutesToHM(plan.mission.totalPlannedMinutes)} planned · {minutesToHM(plan.mission.remainingCapacity)} spare
             </span>
@@ -598,26 +662,31 @@ export default function TodayPage() {
         </section>
       )}
 
-      {/* session handoff — subtle, not competing with main CTA */}
+      {/* session completion summary — evidence only, then continue */}
       {handoff && (
-        <section className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between gap-4 animate-fadeIn">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-bold text-emerald-300">
-              <CheckCircle2 className="h-4 w-4" /> {handoff.doneTitle} — done
+        <section className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 animate-fadeIn" aria-label="Session complete">
+          <p className="type-label !text-emerald-300">Session complete{handoff.studiedMin ? ` — ${handoff.studiedMin} min studied` : ""}</p>
+          <p className="mt-1.5 text-sm font-bold text-white">{handoff.doneTitle}</p>
+          {(handoff.fromPct !== undefined || handoff.remainingMin !== undefined) && (
+            <p className="type-metadata mt-1">
+              Progress: {handoff.fromPct ?? 0}% → {handoff.toPct ?? 100}%
+              {(handoff.remainingMin ?? 0) > 0 ? ` · ${handoff.remainingMin} min remaining` : " · fully complete"}
             </p>
-            <p className="mt-1 text-sm font-bold text-white">Next: {handoff.next.title} <span className="font-normal text-gray-400">· {handoff.next.minutes}m</span></p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button onClick={() => { const n = handoff.next; setHandoff(null); startPlanItem(n); }}
-              className="rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white">Start next</button>
-            <button onClick={() => setHandoff(null)} className="rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-gray-400">Later</button>
+          )}
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p className="min-w-0 flex-1 truncate text-sm text-gray-300">Next: <b className="text-white">{handoff.next.title}</b> <span className="font-normal text-gray-400">· {handoff.next.minutes}m</span></p>
+            <div className="flex shrink-0 gap-2">
+              <button onClick={() => { const n = handoff.next; setHandoff(null); startPlanItem(n); }}
+                className="min-h-[44px] rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-white transition-colors duration-200 motion-reduce:transition-none hover:bg-accent-hover">Continue to next task</button>
+              <button onClick={() => setHandoff(null)} className="min-h-[44px] rounded-xl border border-border px-4 py-2.5 text-xs font-bold text-gray-400 transition-colors duration-200 motion-reduce:transition-none hover:bg-border/60">Later</button>
+            </div>
           </div>
         </section>
       )}
 
       {/* 5 — TODAY'S MISSION (Today = execution, compact) */}
       <section className="rounded-xl border border-border bg-card p-5">
-        <h3 className="text-sm font-bold text-gray-200">Today&apos;s mission</h3>
+        <h3 className="type-h3">Mission mix</h3>
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
           {[
             { label: "GATE", mins: plan?.plan.items.filter(i => i.kind === "GATE" && !i.done).reduce((a,b)=>a+b.minutes,0) ?? 0, done: plan?.plan.items.filter(i => i.kind==="GATE" && i.done).length ?? 0 },
@@ -636,7 +705,7 @@ export default function TodayPage() {
       {/* 6 — MUST DO — no contradictory empty states */}
       <section>
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-bold tracking-tight text-white">Must do</h2>
+          <h2 className="type-h2">Must do</h2>
           <span className="text-xs font-semibold text-gray-500">{must.filter(m=>!m.done).length} remaining · {must.length} total</span>
         </div>
         {must.length === 0 ? (
@@ -651,10 +720,16 @@ export default function TodayPage() {
                 <input type="checkbox" checked={it.done} onChange={() => togglePlanItem(it)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-500" aria-label={`Done: ${it.title}`} />
                 <div className="min-w-0 flex-1">
                   <p className={`text-sm font-bold leading-tight ${it.done ? "text-gray-500 line-through" : "text-white"}`}><TrackBadge track={trackOfPlanItem(it)} /> {it.title} <span className="ml-2 font-mono text-xs font-normal text-gray-500">{it.minutes}m</span></p>
-                  <p className="mt-1 text-xs italic text-gray-500 line-clamp-2">Why: {it.why}</p>
+                <p className="mt-1 text-xs italic text-gray-500 line-clamp-2">Why: {it.why}</p>
+                {!it.done && (
+                  <WhyThisTask
+                    includeGeneric={false}
+                    signals={{ carryOverCount: it.carryOverCount, movedFrom: it.movedFrom, priority: it.priority, kind: it.kind, why: it.why }}
+                  />
+                )}
                 </div>
                 {!it.done && (
-                  <button onClick={() => startPlanItem(it)} className="shrink-0 rounded-xl bg-accent/10 border border-accent/20 px-3 py-2 text-xs font-bold text-accent hover:bg-accent/20 min-h-[40px]" aria-label={`Start ${it.title}`}>Start</button>
+                  <button onClick={() => startPlanItem(it)} className="shrink-0 rounded-xl bg-accent/10 border border-accent/20 px-3 py-2 text-xs font-bold text-accent hover:bg-accent/20 min-h-[44px]" aria-label={`Start ${it.title}`}>Start</button>
                 )}
               </li>
             ))}
@@ -961,7 +1036,7 @@ function MissionBlock({ label, purpose, items, highlight, onToggle, onStart, onP
               {!it.done && (
                 <div className="flex shrink-0 flex-col gap-1.5">
                   <button onClick={() => onStart(it)}
-                    className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-white hover:bg-accent-hover min-h-[36px]">
+                    className="rounded-lg bg-accent px-3 py-2 text-xs font-bold text-white hover:bg-accent-hover min-h-[44px]">
                     Start
                   </button>
                   <button onClick={() => setPartialFor(partialFor === it.id ? null : it.id)}
@@ -1012,7 +1087,7 @@ function PlanTierSection({ title, items, compact, empty, subtitle, onToggle, onS
   if (items.length === 0 && !empty) return null;
   return (
     <section>
-      <h2 className="text-2xl font-bold tracking-tight text-white md:text-[1.7rem]">{title}</h2>
+      <h2 className="type-h2">{title}</h2>
       {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
       {items.length === 0 ? (
         <p className="mt-2 text-[15px] text-gray-500">{empty}</p>
@@ -1123,8 +1198,8 @@ function NotebookSection({ notebook, mustItems, onToggle, expandedDoubts, setExp
   return (
     <section className="rounded-2xl border border-border bg-card p-6 md:p-8">
       <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-white">
-          <NotebookPen className="h-6 w-6 text-indigo-300" /> Today&apos;s notebook
+        <h2 className="type-h2 flex items-center gap-2">
+          <NotebookPen className="h-6 w-6 text-indigo-300" aria-hidden /> Today&apos;s notebook
         </h2>
         <span className="text-xs font-semibold text-gray-500" aria-live="polite">
           {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved ✓" : "Auto-save on"}
@@ -1250,7 +1325,7 @@ function PlanDayModal({ isOpen, onClose, available, priority, pace, horizons, on
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="relative max-h-[92vh] w-full max-w-md animate-fadeIn overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl sm:rounded-2xl sm:p-6">
         <button onClick={onClose} className="absolute right-4 top-4 p-2 text-gray-400 hover:text-white" aria-label="Close">✕</button>
-        <h2 className="text-xl font-bold text-white">Plan my day</h2>
+        <h2 className="type-h2">Plan my day</h2>
         <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
           <div className="rounded-xl bg-border/20 p-2.5"><p className="text-gray-500">Available</p><p className="text-base font-black text-white">{Math.round(avail / 60 * 10) / 10}h</p></div>
           <div className="rounded-xl bg-border/20 p-2.5"><p className="text-gray-500">GATE pace</p><p className="text-base font-black text-white">{pace?.requiredTopicsPerDay ?? "—"}/day</p></div>

@@ -81,16 +81,16 @@ export default function GateDashboardPage() {
     <div className="mx-auto max-w-3xl space-y-10 pb-16 md:space-y-12">
       {/* 1 — hero */}
       <header className="pt-4 md:pt-8">
-        <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-purple-300">
-          <BookOpen className="h-4 w-4" /> GATE 2027
+        <p className="type-label flex items-center gap-2 !text-purple-300">
+          <BookOpen className="h-4 w-4" aria-hidden /> GATE 2027
         </p>
-        <p className="metric-xl mt-3 text-white">
+        <h1 className="metric-xl mt-3 text-white">
           {solvedPYQs} <span className="text-lg font-semibold text-gray-500">PYQs solved</span>
-        </p>
+        </h1>
         <p className="mt-1 text-2xl font-extrabold text-emerald-400 md:text-3xl">{avgAccuracy}% <span className="text-base font-semibold text-gray-500">accuracy</span></p>
         <div className="mt-4 max-w-md">
-          <ProgressBar value={totalPYQs > 0 ? Math.round((solvedPYQs / totalPYQs) * 100) : 0} color="bg-gradient-to-r from-purple-500 to-indigo-400" heightClass="h-2.5" />
-          <p className="mt-2 text-xs text-gray-500">
+          <ProgressBar value={totalPYQs > 0 ? Math.round((solvedPYQs / totalPYQs) * 100) : 0} label="GATE PYQ progress" color="bg-gradient-to-r from-purple-500 to-indigo-400" heightClass="h-2" />
+          <p className="type-metadata mt-2">
             {totalPYQs > 0 ? `${solvedPYQs}/${totalPYQs} PYQs • ${Math.max(0, totalPYQs - solvedPYQs)} remaining` : "1270 PYQs target"} • {(() => { const d = Math.max(1, Math.ceil((new Date("2027-01-15").getTime() - Date.now()) / 86400000)); const rem = Math.max(0, totalPYQs - solvedPYQs || 1270 - solvedPYQs); return `${Math.ceil(rem / d)}/day to Jan 15`; })()}
           </p>
         </div>

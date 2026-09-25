@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g fill="currentColor">
+    <!-- Apex Peak -->
+    <polygon points="256,64 300,108 256,152 212,108" />
+    
+    <!-- Left Blade -->
+    <path d="M 196,124 L 144,176 L 144,336 L 196,388 L 236,348 L 236,296 L 196,256 L 236,216 L 236,164 Z" />
+    
+    <!-- Right Blade -->
+    <path d="M 316,124 L 368,176 L 368,336 L 316,388 L 276,348 L 276,296 L 316,256 L 276,216 L 276,164 Z" />
+    
+    <!-- Lower Base Anchor -->
+    <polygon points="256,364 316,424 256,456 196,424" />
+    
+    <!-- Central Ember Core -->
+    <polygon points="256,196 306,256 256,316 206,256" />
+  </g>
+</svg>
