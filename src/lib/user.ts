@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { autoSeedCurriculumIfNeeded } from "./auto-seed";
 
 /**
  * Ensure the single bootstrap user row exists, creating it with the exact
@@ -11,6 +12,7 @@ import { prisma } from "./prisma";
  * This is idempotent: on seeded databases it is a single findFirst no-op.
  */
 export async function ensureUser() {
+  await autoSeedCurriculumIfNeeded();
   const existing = await prisma.user.findFirst({ include: { settings: true } });
   if (existing) return existing;
 
