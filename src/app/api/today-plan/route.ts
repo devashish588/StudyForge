@@ -770,7 +770,7 @@ async function findOrResolveItem(
       minutes: 30,
       refType: "revisionItem",
       refId: revItem.id,
-      track: revItem.category === "GATE" ? "GATE" : "SOFTWARE_ENGINEERING",
+      track: revItem.category === "GATE" ? "GATE" : revItem.category === "DSA" ? "DSA" : "SOFTWARE_ENGINEERING",
       why: "Spaced repetition revision",
       done: false,
       fitted: true,

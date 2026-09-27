@@ -414,6 +414,9 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
     title: r.title,
     detail: `${r.category} · ~${revEach}m recall`,
     minutes: revEach, refType: "revisionItem", refId: r.id,
+    // Canonical track from the revision category so downstream mission /
+    // session labels never fall back to a default track.
+    track: r.category === "GATE" ? "GATE" : r.category === "DSA" ? "DSA" : undefined,
     why: "Due today — spaced repetition only works on schedule.",
     done: false,
   }));

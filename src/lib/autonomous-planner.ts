@@ -282,6 +282,11 @@ function toPlanItem(c: WorkCandidate, block: CognitiveBlock, why: string, date: 
     minutes: c.minutes,
     refType: c.refType as PlanItem["refType"],
     refId: c.refId,
+    // Canonical track metadata must survive the mission bridge so Today /
+    // Planner / Print never fall back to heuristic (or default SWE) labels.
+    track: c.track,
+    priority: c.priority,
+    difficulty: c.difficulty,
     why,
     done: false,
     learningStage: c.revisionDue || c.kind === "REVISION" ? "REVISED" : c.kind === "PRACTICE" ? "PRACTICED" : c.minutes < c.originalMinutes ? "LEARNING" : "NOT_STARTED",

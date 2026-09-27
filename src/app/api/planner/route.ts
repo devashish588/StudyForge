@@ -81,7 +81,7 @@ export async function GET(req: Request) {
     const { ...curriculum} = (() => {
       // Reuse the same bucket logic as mission.ts: GATE + GATE_PREP, AI, SWE, DSA
       const gateOpen = inventory.gateTopics.filter((t) => !t.completed);
-      let gateRem = 0, gatePrepRem = 0, aiRem = 0, sweRem = 0, aiProjRem = 0, sweProjRem = 0;
+      let gateRem = 0, gatePrepRem = 0, aiRem = 0, sweRem = 0, dsaRem = 0, aiProjRem = 0, sweProjRem = 0;
       const AI_RE = /RAG|Agent|Chatbot|ML Prediction|Containerized/i;
       for (const t of gateOpen) {
         const mins = t.remainingMinutes ?? t.estimatedMinutes;
@@ -96,10 +96,13 @@ export async function GET(req: Request) {
         if (bucket === "AI_ENGINEERING") aiRem += mins;
         else if (bucket === "SOFTWARE_ENGINEERING") sweRem += mins;
         else if (bucket === "GATE_PREP") gatePrepRem += mins;
+        else if (bucket === "DSA" || t.category === "DSA") dsaRem += mins;
         else {
           // fallback classify like mission.ts
           const isAI = /ml|generative|rag|agent|llm|transformer|embedding|prompt|genai/i.test(`${t.category} ${t.title}`);
-          if (isAI) aiRem += mins; else sweRem += mins;
+          if (isAI) aiRem += mins;
+          else if (/(dsa|core 100|leetcode|striver|neetcode)/i.test(`${t.category} ${t.title}`)) dsaRem += mins;
+          else sweRem += mins;
         }
       }
       for (const pr of inventory.projects) {
@@ -120,7 +123,7 @@ export async function GET(req: Request) {
           { key: "gate", label: "GATE", done: gateDone, total: inventory.gateTopics.length, remainingMinutes: gateRem + gatePrepRem, deadline: settings.syllabusDeadline },
           { key: "ai", label: "AI Engineering", done: aiDone, total: inventory.roadmapTasks.filter((t) => t.track === "AI_ENGINEERING").length, remainingMinutes: aiRem + aiProjRem, deadline: target },
           { key: "swe", label: "Software Engineering", done: sweDone, total: inventory.roadmapTasks.filter((t) => t.track === "SOFTWARE_ENGINEERING").length, remainingMinutes: sweRem + sweProjRem, deadline: target },
-          { key: "dsa", label: "DSA", done: solved, total: inventory.practice.length, remainingMinutes: practiceRem, deadline: target },
+          { key: "dsa", label: "DSA", done: solved, total: inventory.practice.length, remainingMinutes: practiceRem + dsaRem, deadline: target },
         ],
         sustainable, dayTarget,
         { gate: 0.375, ai: 0.375, swe: 0.25, dsa: 0.25 },

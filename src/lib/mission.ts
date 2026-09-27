@@ -160,10 +160,14 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   let aiRemaining = 0, sweRemaining = 0, dsaRoadmapRemaining = 0;
   let aiDone = 0, aiTotal = 0, sweDone = 0, sweTotal = 0;
   for (const t of input.roadmapTasks) {
-    const bucket = (t.track === "DSA" || t.category === "DSA") ? "DSA"
+    // Explicit stored track wins; GATE_PREP exam-prep tasks pace with GATE
+    // everywhere (even when their category is DSA); untracked DSA-category
+    // rows fall back to DSA, never to SWE.
+    const bucket = t.track === "DSA" ? "DSA"
       : t.track === "AI_ENGINEERING" ? "AI"
       : t.track === "SOFTWARE_ENGINEERING" ? "SWE"
       : t.track === "GATE_PREP" ? "GATEPREP"
+      : t.category === "DSA" ? "DSA"
       : (classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "AI_ENGINEERING" ? "AI" : classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "DSA" ? "DSA" : "SWE");
     const isDone = t.status === "COMPLETED" || t.status === "PRACTICE";
     if (bucket === "AI") { aiTotal++; if (isDone) aiDone++; }
@@ -201,7 +205,7 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
       { key: "gate", label: "GATE", done: gateDoneCount, total: input.gateTopics.length, remainingMinutes: gateRemaining + gatePrepRemaining, deadline: syllabusDeadline },
       { key: "ai", label: "AI Engineering", done: aiDone, total: aiTotal, remainingMinutes: aiRemaining + aiProjRemaining, deadline: curriculumDeadline },
       { key: "swe", label: "Software Engineering", done: sweDone, total: sweTotal, remainingMinutes: sweRemaining + sweProjRemaining, deadline: curriculumDeadline },
-      { key: "dsa", label: "DSA", done: practiceSolved, total: practiceTotal, remainingMinutes: practiceRemaining, deadline: curriculumDeadline },
+      { key: "dsa", label: "DSA", done: practiceSolved, total: practiceTotal, remainingMinutes: practiceRemaining + dsaRoadmapRemaining, deadline: curriculumDeadline },
     ],
     sustainable, capacity,
     { gate: 0.375, ai: 0.375, swe: 0.25, dsa: 0.25 },
@@ -236,7 +240,9 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     built.map((b) => {
       const orig = items.find((i) => (i.refId ?? i.id) === b.refId) ?? items.find((i) => i.title === b.title);
       // fitted: this item passed the builder's capacity fit (scheduled work).
-      return { ...(orig ?? b), ...b, block, tier: b.tier, minutes: b.minutes, fitted: true };
+      // Canonical track survives explicitly (built items carry it; original is
+      // the fallback) so no consumer re-derives it heuristically.
+      return { ...(orig ?? b), ...b, block, track: b.track ?? orig?.track, tier: b.tier, minutes: b.minutes, fitted: true };
     });
 
   const carryOver = asItems(mission.carryOver, "CARRY_OVER");
@@ -290,7 +296,9 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   for (const l of leftover) {
     const b = blockOf(l);
     // fitted: false — visible queued overflow, explicitly NOT scheduled work.
-    const withBlock: PlanItem = { ...l, block: b, fitted: false };
+    // Track still stamped canonically (same rule as candidates) so queued
+    // items never render under a default/heuristic track either.
+    const withBlock: PlanItem = { ...l, block: b, fitted: false, track: l.track ?? classifyTrack(l.kind, `${l.detail ?? ""} ${l.title}`) };
     if (b === "CARRY_OVER") carryOver.push(withBlock);
     else if (b === "EASY_START") easyStart.push(withBlock);
     else if (b === "HARD_DEEP") hardDeepWork.push(withBlock);

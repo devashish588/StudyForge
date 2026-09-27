@@ -36,9 +36,9 @@ export const AI_GROUPS: HubGroupDef[] = [
   { key: "interviews", label: "AI Interviews", titles: ["AI System Design & Interview Scenarios"], match: /ai system design/i },
 ];
 
-// ---- SWE hub groups (15) ----
+// ---- SWE hub groups (14): DSA-roadmap tasks carry track = "DSA" and are
+// owned by the DSA hub (primers + Core-100); they must never be claimed here.
 export const SWE_GROUPS: HubGroupDef[] = [
-  { key: "programming", label: "Programming/CS", titles: ["DSA Introduction & Big O Notation", "Arrays Fundamentals & Operations", "Strings & Searching Algorithms", "Basic Sorting Algorithms", "Recursion & Backtracking Foundations", "Linked Lists & Fast/Slow Pointer", "Stack, Queue & Deque", "Hashing, HashMap & Sliding Window", "Binary Trees & BST", "Heaps & Priority Queues", "Graph Algorithms (BFS/DFS/Dijkstra)", "Dynamic Programming Foundations", "Greedy Algorithms & Classic Patterns", "DSA Interview Patterns & Mock Interview", "DSA Pattern Consolidation"], match: /^(dsa |arrays|strings|basic sorting|recursion|linked lists|stack,|hashing|binary trees|heaps|graph algorithms|dynamic programming|greedy algorithms)/i },
   { key: "web", label: "Web/HTTP", titles: ["Web Architecture & HTTP Fundamentals", "Async JS, Event Loop & DOM Survival Kit"], match: /web architecture|async js/i },
   { key: "backend", label: "Backend", titles: ["Backend APIs: REST, Validation, Auth & RBAC"], match: /backend apis/i },
   { key: "postgres", label: "PostgreSQL", titles: ["PostgreSQL Depth: Schema → MVCC → Query Plans", "ORM & Data Modeling (Prisma)"], match: /postgresql depth|^orm &/i },

@@ -304,6 +304,12 @@ export async function GET(req: Request) {
     const sweTaskMin = remainingRoadmap
       .filter((t) => t.track === "SOFTWARE_ENGINEERING")
       .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+    // DSA-roadmap tasks pace with the DSA track (same bucket rule as the
+    // mission bridge: explicit DSA track, or DSA category on rows without an
+    // AI/SWE/GATE_PREP track; GATE_PREP exam-prep rows stay with GATE).
+    const dsaTaskMin = remainingRoadmap
+      .filter((t) => t.track === "DSA" || (t.category === "DSA" && !["AI_ENGINEERING", "SOFTWARE_ENGINEERING", "GATE_PREP"].includes(t.track ?? "")))
+      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
     let aiProjMin = 0, sweProjMin = 0;
     for (const t of remainingProjects) {
       const mins = Math.max(0, t.estimatedMinutes ?? 60);
@@ -333,7 +339,7 @@ export async function GET(req: Request) {
         {
           key: "dsa", label: "DSA",
           done: solvedProblems, total: allProblems.length,
-          remainingMinutes: allProblems.filter((p) => !p.solved).reduce((a, p) => a + (p.timeMinutes || 15), 0),
+          remainingMinutes: allProblems.filter((p) => !p.solved).reduce((a, p) => a + (p.timeMinutes || 15), 0) + dsaTaskMin,
           deadline: curriculumDeadline,
         },
       ],
