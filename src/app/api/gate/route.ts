@@ -128,6 +128,13 @@ export async function PATCH(req: Request) {
     }
 
     if (topicId && (topicCompleted !== undefined || topicConfidence !== undefined)) {
+      // Boundary validation: confidence must be a finite 1-5 rating.
+      if (topicConfidence !== undefined) {
+        const c = Number(topicConfidence);
+        if (!Number.isFinite(c) || c < 1 || c > 5) {
+          return NextResponse.json({ error: "Invalid confidence (expected 1-5)" }, { status: 400 });
+        }
+      }
       const updated = await prisma.gateTopic.update({
         where: { id: topicId },
         data: {
@@ -136,7 +143,7 @@ export async function PATCH(req: Request) {
             // Stamp completion date so pace engine can measure topics/day honestly.
             completedAt: topicCompleted ? todayStr() : null,
           }),
-          ...(topicConfidence !== undefined && { confidence: Number(topicConfidence) }),
+          ...(topicConfidence !== undefined && { confidence: Math.round(Number(topicConfidence)) }),
           // Any touch counts as studied (drives "stale topic" priority).
           lastStudied: todayStr(),
         },

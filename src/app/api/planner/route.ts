@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { todayStr, addDays, diffDays, PROGRAM_START_STR } from "@/lib/date";
 import { ensureUser } from "@/lib/user";
-import { buildCurriculumOutlook } from "@/lib/curriculum";
+import { buildCurriculumOutlook, classifyRoadmapBucket } from "@/lib/curriculum";
 import {
   buildMonthlyPlans,
   buildWeeklyPlans,
@@ -92,18 +92,12 @@ export async function GET(req: Request) {
         if (t.status === "COMPLETED" || t.status === "PRACTICE") continue;
         const mins = Math.max(15, (t.remainingMinutes ?? Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0))));
         if (t.priority === "OPTIONAL") continue;
-        const bucket = (t as { track?: string }).track;
-        if (bucket === "AI_ENGINEERING") aiRem += mins;
-        else if (bucket === "SOFTWARE_ENGINEERING") sweRem += mins;
-        else if (bucket === "GATE_PREP") gatePrepRem += mins;
-        else if (bucket === "DSA" || t.category === "DSA") dsaRem += mins;
-        else {
-          // fallback classify like mission.ts
-          const isAI = /ml|generative|rag|agent|llm|transformer|embedding|prompt|genai/i.test(`${t.category} ${t.title}`);
-          if (isAI) aiRem += mins;
-          else if (/(dsa|core 100|leetcode|striver|neetcode)/i.test(`${t.category} ${t.title}`)) dsaRem += mins;
-          else sweRem += mins;
-        }
+        // Shared bucket rule (curriculum.ts) — identical attribution on every surface.
+        const bucket = classifyRoadmapBucket(t.track, t.category, t.title);
+        if (bucket === "AI") aiRem += mins;
+        else if (bucket === "SWE") sweRem += mins;
+        else if (bucket === "GATEPREP") gatePrepRem += mins;
+        else dsaRem += mins;
       }
       for (const pr of inventory.projects) {
         for (const x of pr.tasks.filter((x) => !x.completed)) {
@@ -127,7 +121,10 @@ export async function GET(req: Request) {
         ],
         sustainable, dayTarget,
         { gate: 0.375, ai: 0.375, swe: 0.25, dsa: 0.25 },
-        hasHistory, dayTarget
+        // Stretch (8h) is the no-history upper band everywhere else
+        // (mission, dashboard); passing capacity here collapsed AT_RISK
+        // into OVERLOAD on identical state.
+        hasHistory, stretch
       );
     })();
 

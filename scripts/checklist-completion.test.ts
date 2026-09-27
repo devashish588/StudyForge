@@ -115,10 +115,11 @@ async function run() {
   const count = await prisma.roadmapTask.count({ where: { id: task.id } });
   check("No duplicate canonical tasks created during check/uncheck cycle", count === 1, `Count: ${count}`);
 
-  // Reset task back to TODO with 0 actuals for live daily use
+  // Reset task back to pristine TODO state for live daily use (remainingMinutes
+  // null = untouched; the planner derives the full estimate from it).
   await prisma.roadmapTask.update({
     where: { id: task.id },
-    data: { status: "TODO", actualMinutes: 0, remainingMinutes: estMins, completionDate: null, completionPercent: 0 },
+    data: { status: "TODO", actualMinutes: 0, remainingMinutes: null, completionDate: null, completionPercent: 0 },
   });
 
   if (failures > 0) {

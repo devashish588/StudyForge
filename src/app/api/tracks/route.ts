@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { todayStr, addDays, diffDays, GATE_SYLLABUS_DEADLINE_DEFAULT, CURRICULUM_DEADLINE_DEFAULT } from "@/lib/date";
 import { ensureUser } from "@/lib/user";
-import { AI_PROJECT_RE } from "@/lib/curriculum";
+import { AI_PROJECT_RE, classifyRoadmapBucket } from "@/lib/curriculum";
 import {
   AI_GROUPS, SWE_GROUPS, DSA_PATTERNS, DISTRIBUTED_LINK_TITLES, groupStage,
   type HubGroupDef,
@@ -181,16 +181,14 @@ async function dsaPayload(paceArgs?: { deadline: string; currentPerDay: number }
     .map((p) => ({ id: p.id, title: p.title, retryDate: p.retryDate }));
   const primers = await prisma.roadmapTask.findMany({
     where: { category: "DSA" },
-    select: { status: true, priority: true, track: true, estimatedTimeMinutes: true, actualMinutes: true },
+    select: { title: true, status: true, priority: true, track: true, estimatedTimeMinutes: true, actualMinutes: true },
   });
   const primersDone = primers.filter((t) => doneStatus(t.status)).length;
   const pct = problems.length ? Math.round((solved / problems.length) * 100) : 0;
-  // DSA-roadmap remainder paces with the DSA track (same bucket rule as the
-  // mission bridge and dashboard: explicit DSA track, or DSA category on
-  // untracked rows; GATE_PREP exam-prep rows pace with GATE, not DSA).
+  // Shared bucket rule (curriculum.ts) — identical attribution on every surface.
   const dsaRoadmapMin = primers
     .filter((t) => !doneStatus(t.status) && t.priority !== "OPTIONAL")
-    .filter((t) => t.track === "DSA" || !["AI_ENGINEERING", "SOFTWARE_ENGINEERING", "GATE_PREP"].includes(t.track ?? ""))
+    .filter((t) => classifyRoadmapBucket(t.track, "DSA", t.title) === "DSA")
     .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
   const dsaRemaining = problems.filter((p) => !p.solved).reduce((a, p) => a + (p.timeMinutes || 15), 0) + dsaRoadmapMin;
   // DSA pace uses the SAME required-pace convention as the AI/SWE hubs

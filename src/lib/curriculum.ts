@@ -18,6 +18,7 @@
 // OPTIONAL is spare-capacity-only and reported separately, never in pace.
 
 import { diffDays } from "./date";
+import { classifyTrack } from "./autonomous-planner";
 
 export type PaceStatus = "ON_TRACK" | "AT_RISK" | "OVERLOAD";
 
@@ -27,6 +28,30 @@ export const STUDY_DAYS_NOTE =
 /** Project-name test shared with the mission risk split (mission.ts):
     AI-matched milestones pace with AI Engineering, the rest with SWE. */
 export const AI_PROJECT_RE = /RAG|Agent|Chatbot|ML Prediction|Containerized/i;
+
+/** Curriculum pace bucket for a roadmap task. Single shared rule for the
+    mission bridge, dashboard, planner and track hubs so required-work
+    attribution can never diverge between surfaces:
+    explicit stored track wins; GATE_PREP exam-prep tasks pace with GATE even
+    when their category is DSA; untracked DSA-category rows pace with DSA
+    (never SWE); anything else falls back to keyword classification. */
+export type RoadmapBucket = "AI" | "SWE" | "DSA" | "GATEPREP";
+
+export function classifyRoadmapBucket(
+  track: string | null | undefined,
+  category: string,
+  title: string
+): RoadmapBucket {
+  if (track === "DSA") return "DSA";
+  if (track === "AI_ENGINEERING") return "AI";
+  if (track === "SOFTWARE_ENGINEERING") return "SWE";
+  if (track === "GATE_PREP") return "GATEPREP";
+  if (category === "DSA") return "DSA";
+  const c = classifyTrack("ROADMAP", `${category} ${title}`);
+  if (c === "AI_ENGINEERING") return "AI";
+  if (c === "DSA") return "DSA";
+  return "SWE";
+}
 
 export function paceStatus(
   requiredPerDay: number,

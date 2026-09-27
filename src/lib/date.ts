@@ -123,6 +123,16 @@ export function getDaysUntilStart(fromDateStr: string): number {
   return Math.max(0, diffDays(fromDateStr, PROGRAM_START_STR));
 }
 
+/** Strict YYYY-MM-DD calendar-date check for user-supplied deadlines.
+    Malformed deadlines would otherwise poison pace math with NaN. */
+export function isValidDateStr(s: unknown): s is string {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 /** True for seeded demo rows (never counted in active metrics). */
 export function isDemoDay(day: { notes?: string | null; title?: string | null }): boolean {
   const text = `${day.notes ?? ""} ${day.title ?? ""}`;

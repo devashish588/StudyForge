@@ -47,6 +47,28 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    // Boundary validation: unknown statuses would silently drop the row from
+    // every workload filter (neither complete nor incomplete → undercounted
+    // required work); non-finite numerics would fail the write.
+    const VALID_STATUSES = ["TODO", "IN_PROGRESS", "PRACTICE", "REVISION", "COMPLETED", "NEEDS_REVISIT"];
+    if (status !== undefined && !VALID_STATUSES.includes(String(status))) {
+      return NextResponse.json({ error: `Invalid status (expected one of: ${VALID_STATUSES.join(", ")})` }, { status: 400 });
+    }
+    const numOrUndef = (v: unknown): number | undefined => {
+      if (v === undefined) return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+    if (actualMinutes !== undefined && numOrUndef(actualMinutes) === undefined) {
+      return NextResponse.json({ error: "Invalid actualMinutes" }, { status: 400 });
+    }
+    if (plannedMinutes !== undefined && numOrUndef(plannedMinutes) === undefined) {
+      return NextResponse.json({ error: "Invalid plannedMinutes" }, { status: 400 });
+    }
+    if (confidence !== undefined && (numOrUndef(confidence) === undefined || Number(confidence) < 1 || Number(confidence) > 5)) {
+      return NextResponse.json({ error: "Invalid confidence (expected 1-5)" }, { status: 400 });
+    }
+
     const today = todayStr();
     const updatedTask = await prisma.roadmapTask.update({
       where: { id: taskId },

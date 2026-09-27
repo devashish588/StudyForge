@@ -9,7 +9,7 @@ import {
   CURRICULUM_DEADLINE_DEFAULT,
 } from "@/lib/date";
 import { calculateStreak, computeCoreDayPure, generatePlan } from "@/lib/study";
-import { buildCurriculumOutlook, AI_PROJECT_RE } from "@/lib/curriculum";
+import { buildCurriculumOutlook, AI_PROJECT_RE, classifyRoadmapBucket } from "@/lib/curriculum";
 import { ensureUser } from "@/lib/user";
 
 export const dynamic = "force-dynamic";
@@ -295,21 +295,14 @@ export async function GET(req: Request) {
     const isDoneTask = (s: string) => s === "COMPLETED" || s === "PRACTICE";
     const aiRows = allRoadmapTasks.filter((t) => t.track === "AI_ENGINEERING");
     const sweRows = allRoadmapTasks.filter((t) => t.track === "SOFTWARE_ENGINEERING");
-    const gatePrepMin = remainingRoadmap
-      .filter((t) => (t as { track?: string }).track === "GATE_PREP")
+    // Shared bucket rule (curriculum.ts) — identical attribution on every surface.
+    const bucketMin = (b: "AI" | "SWE" | "DSA" | "GATEPREP") => remainingRoadmap
+      .filter((t) => classifyRoadmapBucket(t.track, t.category, t.title) === b)
       .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
-    const aiTaskMin = remainingRoadmap
-      .filter((t) => t.track === "AI_ENGINEERING")
-      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
-    const sweTaskMin = remainingRoadmap
-      .filter((t) => t.track === "SOFTWARE_ENGINEERING")
-      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
-    // DSA-roadmap tasks pace with the DSA track (same bucket rule as the
-    // mission bridge: explicit DSA track, or DSA category on rows without an
-    // AI/SWE/GATE_PREP track; GATE_PREP exam-prep rows stay with GATE).
-    const dsaTaskMin = remainingRoadmap
-      .filter((t) => t.track === "DSA" || (t.category === "DSA" && !["AI_ENGINEERING", "SOFTWARE_ENGINEERING", "GATE_PREP"].includes(t.track ?? "")))
-      .reduce((a, t) => a + Math.max(0, t.estimatedTimeMinutes - (t.actualMinutes ?? 0)), 0);
+    const gatePrepMin = bucketMin("GATEPREP");
+    const aiTaskMin = bucketMin("AI");
+    const sweTaskMin = bucketMin("SWE");
+    const dsaTaskMin = bucketMin("DSA");
     let aiProjMin = 0, sweProjMin = 0;
     for (const t of remainingProjects) {
       const mins = Math.max(0, t.estimatedMinutes ?? 60);

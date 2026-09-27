@@ -176,6 +176,27 @@ export interface RevisionInput {
   id: string;
   title: string;
   category: string;
+  /** Canonical GATE subject when known (enables subject-scoped revision
+      eligibility; absent → legacy track-level rules apply). */
+  subject?: string | null;
+}
+
+/** Canonical subject for the seeded revision rows (exact titles from the
+    curriculum seed). Custom/doubt revisions without a known subject keep
+    legacy track-level gating — protection never silently disappears. */
+const REVISION_SUBJECT_BY_TITLE: Record<string, string> = {
+  "DBMS Normalization (1NF to BCNF)": "DBMS",
+  "Operating Systems CPU Scheduling": "Operating Systems",
+  "Conditional Probability & Bayes Rule": "Engineering Mathematics",
+  "Arrays & Two Pointers": "DSA",
+  "Binary Search Patterns": "DSA",
+};
+
+/** Resolve a revision item's canonical subject: explicit input first, then
+    the seeded-title map, else null (legacy track-level gating applies). */
+export function revisionSubjectFor(title: string, subject?: string | null): string | null {
+  if (subject && subject.trim()) return subject.trim();
+  return REVISION_SUBJECT_BY_TITLE[title.trim()] ?? null;
 }
 
 export interface BacklogInput {
@@ -417,6 +438,8 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
     // Canonical track from the revision category so downstream mission /
     // session labels never fall back to a default track.
     track: r.category === "GATE" ? "GATE" : r.category === "DSA" ? "DSA" : undefined,
+    // Canonical subject for subject-scoped revision eligibility.
+    subjectName: revisionSubjectFor(r.title, r.subject ?? null) ?? undefined,
     why: "Due today — spaced repetition only works on schedule.",
     done: false,
   }));

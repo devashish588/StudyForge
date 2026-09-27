@@ -11,7 +11,7 @@ import { calculateStreak, type FocusPriority } from "@/lib/study";
 import { ensureDay } from "@/lib/credit";
 import { ensureUser } from "@/lib/user";
 import {
-  buildTodayPlan, type TodayPlan, type PlanItem, type NotebookData, type Doubt,
+  buildTodayPlan, revisionSubjectFor, type TodayPlan, type PlanItem, type NotebookData, type Doubt,
   type EngineInput, type PrevMustInput,
 } from "@/lib/today-plan";
 import { buildMissionPayload, type MissionPayload } from "@/lib/mission";
@@ -771,6 +771,7 @@ async function findOrResolveItem(
       refType: "revisionItem",
       refId: revItem.id,
       track: revItem.category === "GATE" ? "GATE" : revItem.category === "DSA" ? "DSA" : "SOFTWARE_ENGINEERING",
+      subjectName: revisionSubjectFor(revItem.title) ?? undefined,
       why: "Spaced repetition revision",
       done: false,
       fitted: true,

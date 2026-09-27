@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureUser } from "@/lib/user";
+import { isValidDateStr } from "@/lib/date";
 
 export async function GET() {
   try {
@@ -53,14 +54,44 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { dailyTargetHours, dailyTargetMinutes, stretchTargetMinutes, schedulingMode, notifyReminders, preferredSittings, gateAllocation, roadmapAllocation, revisionAllocation, practiceAllocation, gateSyllabusDeadline, gateExamWindowStart, gateExamWindowEnd, gatePaperDate, curriculumDeadline } = body;
 
+    // Boundary validation: malformed deadlines would poison pace math with
+    // NaN; non-numeric allocations would write NaN to the database. Reject
+    // bad deadlines (400, no write); clamp/ignore bad numerics.
+    const badDates = [
+      ["gateSyllabusDeadline", gateSyllabusDeadline],
+      ["gateExamWindowStart", gateExamWindowStart],
+      ["gateExamWindowEnd", gateExamWindowEnd],
+      ["curriculumDeadline", curriculumDeadline],
+    ].filter(([, v]) => v !== undefined && !isValidDateStr(v)).map(([k]) => k);
+    if (gatePaperDate !== undefined && gatePaperDate !== null && !isValidDateStr(gatePaperDate)) {
+      badDates.push("gatePaperDate");
+    }
+    if (badDates.length > 0) {
+      return NextResponse.json({ error: `Invalid date (expected YYYY-MM-DD): ${badDates.join(", ")}` }, { status: 400 });
+    }
+    const frac = (v: unknown): number | undefined => {
+      const n = Number(v);
+      return v === undefined || !Number.isFinite(n) ? undefined : Math.min(1, Math.max(0, n));
+    };
+    const mins = (v: unknown): number | undefined => {
+      // Absent/non-positive values are ignored (preserves the previous
+      // ignore-falsy contract); anything else is clamped to [60, 720].
+      const n = Math.round(Number(v));
+      if (v === undefined || !Number.isFinite(n) || n <= 0) return undefined;
+      return Math.min(720, Math.max(60, n));
+    };
+
     // Bootstrap row is guaranteed to exist, so saves always persist
     // (previously a silent no-op on databases where seed never ran).
     const user = await ensureUser();
     {
+      // dailyTargetHours mirror: only ever a finite positive number, else untouched.
+      const hoursRaw = dailyTargetHours ?? (dailyTargetMinutes !== undefined ? Number(dailyTargetMinutes) / 60 : undefined);
+      const hoursNum = hoursRaw === undefined ? undefined : Number(hoursRaw);
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          ...((dailyTargetHours || dailyTargetMinutes) && { dailyTargetHours: Number(dailyTargetHours ?? Number(dailyTargetMinutes) / 60) })
+          ...((hoursNum !== undefined && Number.isFinite(hoursNum) && hoursNum > 0) && { dailyTargetHours: hoursNum })
         }
       });
 
@@ -76,12 +107,12 @@ export async function PATCH(req: Request) {
           ...(notifyReminders !== undefined && { notifyReminders }),
           ...(preferredSittings && { preferredSittings: JSON.stringify(preferredSittings) }),
           ...(schedulingMode && { schedulingMode }),
-          ...(dailyTargetMinutes && { dailyTargetMinutes: Number(dailyTargetMinutes) }),
-          ...(stretchTargetMinutes && { stretchTargetMinutes: Number(stretchTargetMinutes) }),
-          ...(gateAllocation !== undefined && { gateAllocation: Number(gateAllocation) }),
-          ...(roadmapAllocation !== undefined && { roadmapAllocation: Number(roadmapAllocation) }),
-          ...(revisionAllocation !== undefined && { revisionAllocation: Number(revisionAllocation) }),
-          ...(practiceAllocation !== undefined && { practiceAllocation: Number(practiceAllocation) }),
+          ...(mins(dailyTargetMinutes) !== undefined && { dailyTargetMinutes: mins(dailyTargetMinutes) }),
+          ...(mins(stretchTargetMinutes) !== undefined && { stretchTargetMinutes: mins(stretchTargetMinutes) }),
+          ...(frac(gateAllocation) !== undefined && { gateAllocation: frac(gateAllocation) }),
+          ...(frac(roadmapAllocation) !== undefined && { roadmapAllocation: frac(roadmapAllocation) }),
+          ...(frac(revisionAllocation) !== undefined && { revisionAllocation: frac(revisionAllocation) }),
+          ...(frac(practiceAllocation) !== undefined && { practiceAllocation: frac(practiceAllocation) }),
           ...(gateSyllabusDeadline !== undefined && { gateSyllabusDeadline: String(gateSyllabusDeadline) }),
           ...(gateExamWindowStart !== undefined && { gateExamWindowStart: String(gateExamWindowStart) }),
           ...(gateExamWindowEnd !== undefined && { gateExamWindowEnd: String(gateExamWindowEnd) }),

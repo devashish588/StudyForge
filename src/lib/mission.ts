@@ -14,11 +14,12 @@ import {
   type Mission, type PlannerContext, type ScheduleRisk, type Track, type WorkCandidate,
 } from "./autonomous-planner";
 import {
-  buildCurriculumOutlook, daysToDeadline, AI_PROJECT_RE,
+  buildCurriculumOutlook, daysToDeadline, AI_PROJECT_RE, classifyRoadmapBucket,
   type CurriculumOutlook,
 } from "./curriculum";
 import { diffDays, PROGRAM_END_STR, CURRICULUM_DEADLINE_DEFAULT } from "./date";
 import type { EngineInput, PlanItem, TodayPlan } from "./today-plan";
+import { revisionSubjectFor } from "./today-plan";
 
 export interface JourneyInfo {
   day: number;
@@ -96,6 +97,9 @@ function toCandidate(item: PlanItem, fallbackDate: string): WorkCandidate {
     assignedDate: fallbackDate,
     revisionDue: item.kind === "REVISION",
     whyBase: item.why,
+    // Stored plans predating subject metadata resolve via the seeded-title
+    // map so locked historical rows get identical eligibility treatment.
+    subjectName: item.subjectName ?? (item.kind === "REVISION" ? revisionSubjectFor(item.title) : null),
   };
 }
 
@@ -160,15 +164,8 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   let aiRemaining = 0, sweRemaining = 0, dsaRoadmapRemaining = 0;
   let aiDone = 0, aiTotal = 0, sweDone = 0, sweTotal = 0;
   for (const t of input.roadmapTasks) {
-    // Explicit stored track wins; GATE_PREP exam-prep tasks pace with GATE
-    // everywhere (even when their category is DSA); untracked DSA-category
-    // rows fall back to DSA, never to SWE.
-    const bucket = t.track === "DSA" ? "DSA"
-      : t.track === "AI_ENGINEERING" ? "AI"
-      : t.track === "SOFTWARE_ENGINEERING" ? "SWE"
-      : t.track === "GATE_PREP" ? "GATEPREP"
-      : t.category === "DSA" ? "DSA"
-      : (classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "AI_ENGINEERING" ? "AI" : classifyTrack("ROADMAP", `${t.category} ${t.title}`) === "DSA" ? "DSA" : "SWE");
+    // Shared bucket rule (curriculum.ts) — identical attribution on every surface.
+    const bucket = classifyRoadmapBucket(t.track, t.category, t.title);
     const isDone = t.status === "COMPLETED" || t.status === "PRACTICE";
     if (bucket === "AI") { aiTotal++; if (isDone) aiDone++; }
     else if (bucket === "SWE") { sweTotal++; if (isDone) sweDone++; }
@@ -214,12 +211,23 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
   );
   const behindByKey = new Map(curriculum.tracks.map((t) => [t.key, t.behind]));
 
+  // Open first-pass GATE topics by subject — enables subject-scoped PYQ /
+  // revision eligibility. Every curriculum subject gets a key (possibly an
+  // empty list = subject complete); unknown subjects stay absent so legacy
+  // track-level gating applies to them.
+  const incompleteBySubject = new Map<string, string[]>();
+  for (const t of input.gateTopics) {
+    if (!incompleteBySubject.has(t.subjectName)) incompleteBySubject.set(t.subjectName, []);
+    if (!t.completed) incompleteBySubject.get(t.subjectName)!.push(t.name);
+  }
+
   const ctx: PlannerContext = {
     date,
     capacity,
     stretch: stretchMinutes,
     daysToRoadmapEnd: daysToDeadline(date, curriculumDeadline),
     daysToGateDeadline: daysToGate,
+    incompleteBySubject,
     gateBehind: hasHistory && (plan.pace.driftTopicsPerDay ?? 0) < 0,
     // Real deadline-pressure signals (required pace vs pro-rata proven pace).
     // Previously hardcoded false, so behind tracks never got selection pressure.
@@ -298,7 +306,11 @@ export function buildMissionPayload(plan: TodayPlan, input: EngineInput, stretch
     // fitted: false — visible queued overflow, explicitly NOT scheduled work.
     // Track still stamped canonically (same rule as candidates) so queued
     // items never render under a default/heuristic track either.
-    const withBlock: PlanItem = { ...l, block: b, fitted: false, track: l.track ?? classifyTrack(l.kind, `${l.detail ?? ""} ${l.title}`) };
+    const withBlock: PlanItem = {
+      ...l, block: b, fitted: false,
+      track: l.track ?? classifyTrack(l.kind, `${l.detail ?? ""} ${l.title}`),
+      subjectName: l.subjectName ?? (l.kind === "REVISION" ? revisionSubjectFor(l.title) ?? undefined : undefined),
+    };
     if (b === "CARRY_OVER") carryOver.push(withBlock);
     else if (b === "EASY_START") easyStart.push(withBlock);
     else if (b === "HARD_DEEP") hardDeepWork.push(withBlock);

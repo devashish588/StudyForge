@@ -39,6 +39,9 @@ export interface WorkCandidate {
   assignedDate: string;
   revisionDue: boolean;
   whyBase: string;
+  /** GATE subject identity for PYQ/revision items (enables subject-scoped
+      eligibility; absent → legacy track-level rules apply). */
+  subjectName?: string | null;
 }
 
 export interface PlannerContext {
@@ -52,6 +55,9 @@ export interface PlannerContext {
   sweBehind: boolean;
   projectDueSoon: boolean;
   completedTitles: Set<string>; // lowercase titles of completed work (prereq gate)
+  /** Open first-pass GATE topic titles by subject (enables subject-scoped
+      revision/PYQ eligibility; absent → legacy track-level rules apply). */
+  incompleteBySubject?: Map<string, string[]> | null;
 }
 
 export interface Mission {
@@ -166,11 +172,34 @@ function getTopicStage(title: string, track: Track): number {
 }
 
 /** True when an earlier-chain topic is still incomplete → hold this item. */
-export function prereqBlocked(candidate: WorkCandidate, incompleteTitles: string[]): string | null {
+export function prereqBlocked(
+  candidate: WorkCandidate,
+  incompleteTitles: string[],
+  incompleteBySubject?: Map<string, string[]> | null
+): string | null {
   const chain = getChainForTrack(candidate.track);
   const st = getTopicStage(candidate.title, candidate.track);
   const lowerIncomplete = incompleteTitles.map((t) => t.toLowerCase());
+  const isPyqOrRevision = candidate.revisionDue || candidate.kind === "REVISION" || /(pyq|10 pyqs)/i.test(candidate.title);
+  const isProjectItem = candidate.kind === "PROJECT" || candidate.refType === "projectTask";
 
+  // Subject-scoped revision/PYQ eligibility: a GATE PYQ/revision item is
+  // blocked only by incomplete first-pass topics of its OWN subject — never
+  // by unrelated subjects' foundations. Unknown subjects (absent from the
+  // curriculum map) fall through to the legacy track-level rules below so
+  // protection can never silently disappear. Learning of new material keeps
+  // the full stage-chain gating below; this early return applies only to
+  // revision/PYQ practice of already-introduced material.
+  const subj = candidate.subjectName ?? null;
+  if (candidate.track === "GATE" && isPyqOrRevision && !isProjectItem && subj && incompleteBySubject) {
+    if (incompleteBySubject.has(subj)) {
+      const open = incompleteBySubject.get(subj) ?? [];
+      if (open.length > 0) {
+        return `Prerequisite first-pass “${subj}” topics still incomplete — PYQs/revision for this subject stay protected.`;
+      }
+      return null;
+    }
+  }
   // Beginner protection rule 1: Project tasks (kind === "PROJECT") are BLOCKED
   // if Stage 0 or Stage 1 foundational curriculum topics for that track are incomplete.
   const isProject = candidate.kind === "PROJECT" || candidate.refType === "projectTask";
@@ -184,8 +213,7 @@ export function prereqBlocked(candidate: WorkCandidate, incompleteTitles: string
 
   // Beginner protection rule 2: PYQs or revision items for a track are BLOCKED if foundational
   // (stage 0) roadmap/curriculum items for that track are still incomplete.
-  const isPyqOrRevision = candidate.revisionDue || candidate.kind === "REVISION" || /(pyq|10 pyqs)/i.test(candidate.title);
-
+  // (Subject-scoped GATE items return above; this is the legacy fallback.)
   if (isPyqOrRevision && chain.length > 0) {
     const stage0 = chain[0];
     const hit = lowerIncomplete.find((t) => stage0.re.test(t));
@@ -314,8 +342,9 @@ function isHardCandidate(c: WorkCandidate): boolean {
 export function buildMission(candidates: WorkCandidate[], ctx: PlannerContext): Mission {
   const incompleteTitles = candidates.map((c) => c.title);
   // Prerequisite gate first — blocked items wait, never scheduled prematurely.
-  const ready = candidates.filter((c) => !prereqBlocked(c, incompleteTitles.filter((t) => t !== c.title)));
-  const blocked = candidates.filter((c) => prereqBlocked(c, incompleteTitles.filter((t) => t !== c.title)));
+  const subjMap = ctx.incompleteBySubject ?? null;
+  const ready = candidates.filter((c) => !prereqBlocked(c, incompleteTitles.filter((t) => t !== c.title), subjMap));
+  const blocked = candidates.filter((c) => prereqBlocked(c, incompleteTitles.filter((t) => t !== c.title), subjMap));
   const sorted = [...ready].sort((a, b) => compareCandidates(a, b, ctx));
 
   const carryOver: PlanItem[] = [];
@@ -340,16 +369,21 @@ export function buildMission(candidates: WorkCandidate[], ctx: PlannerContext): 
 
   // 0. Carry-over protection (spec §12/§13): deadline-critical + prereq
   // carry first, capped so one bad day can't eat the whole mission.
+  // Oversized carries are SKIPPED (not aborting the loop), and carries that
+  // miss the cap still compete in normal block fitting below — otherwise an
+  // all-carry pool with one oversized item first would schedule nothing.
   const carry = sorted.filter((c) => c.carryOverCount > 0);
   const carryCap = Math.round(cap * 0.35);
   let carryUsed = 0;
+  const carriedIds = new Set<string>();
   for (const c of carry) {
-    if (carryUsed + c.minutes > carryCap) break;
+    if (carryUsed + c.minutes > carryCap) continue;
     if (take(c, "CARRY_OVER", `Unfinished ${c.sourceDate ? `from ${c.sourceDate}` : "earlier"} — StudyForge carried the remaining ${c.minutes}m forward.`)) {
       carryUsed += c.minutes;
+      carriedIds.add(c.refId);
     }
   }
-  const rest = sorted.filter((c) => c.carryOverCount === 0);
+  const rest = sorted.filter((c) => c.carryOverCount === 0 || !carriedIds.has(c.refId));
 
   // 1. EASY START — warm-up: revision / recall / easy GATE / errors.
   let easyBudget = Math.min(EASY_START_MAX, Math.round(cap * 0.22));
