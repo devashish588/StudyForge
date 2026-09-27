@@ -313,9 +313,14 @@ async function buildEngineInput(
   });
 
   // Unsolved practice-bank remainder (Core 100) for honest feasibility math,
-  // plus solved/total counts for the curriculum outlook.
-  const practiceBank = await prisma.practiceProblem.findMany({ select: { solved: true, timeMinutes: true } });
-  const practiceRemainingMinutes = practiceBank.filter((q) => !q.solved).reduce((a, q) => a + (q.timeMinutes || 15), 0);
+  // plus solved/total counts for the curriculum outlook. Titles ride along
+  // (creation order) so the practice bundle can name real next-up problems.
+  const practiceBank = await prisma.practiceProblem.findMany({
+    select: { title: true, solved: true, timeMinutes: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const unsolvedBank = practiceBank.filter((q) => !q.solved);
+  const practiceRemainingMinutes = unsolvedBank.reduce((a, q) => a + (q.timeMinutes || 15), 0);
   const practiceSolvedCount = practiceBank.filter((q) => q.solved).length;
   const practiceTotalCount = practiceBank.length;
 
@@ -346,6 +351,8 @@ async function buildEngineInput(
       practiceRemainingMinutes,
       practiceSolved: practiceSolvedCount,
       practiceTotal: practiceTotalCount,
+      practiceNextUp: unsolvedBank.slice(0, 3).map((q) => q.title),
+      practiceUnsolved: unsolvedBank.length,
     },
   };
 }

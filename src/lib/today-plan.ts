@@ -47,6 +47,11 @@ export interface PlanItem {
   // extra: user-added extra (recorded work beyond the generated plan).
   fitted?: boolean;
   extra?: boolean;
+  // Practice bundle guidance: next-up Core-100 problem titles (informational
+  // only — solving is recorded per problem on the Practice page, never by
+  // checking the bundle).
+  practiceNextUp?: string[];
+  practiceUnsolved?: number;
 }
 
 export interface Doubt {
@@ -261,6 +266,11 @@ export interface EngineInput {
   /** Practice-bank completion counts (Core 100 solved/total). Filled by route. */
   practiceSolved?: number;
   practiceTotal?: number;
+  /** Next-up unsolved Core-100 titles (stable creation order, max 3) plus the
+      unsolved count, so the practice bundle names real problems. The bundle
+      itself stays plan-scoped: solving is recorded per problem. */
+  practiceNextUp?: string[];
+  practiceUnsolved?: number;
   /** 7-day rolling adaptation snapshot (spec §25/§27). Filled by route.
       sustainablePerDay is null until real study days exist (unknown, never 0). */
   adaptation?: {
@@ -503,6 +513,8 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
   // ---- 8. Practice remainder (priority 7) ----
   // Practice fills its budget with problem sets (~8 min/problem).
   const practiceProblems = Math.max(3, Math.round(budget.practice / 8));
+  const nextUp = (input.practiceNextUp ?? []).filter((t) => t.trim()).slice(0, 3);
+  const unsolved = Math.max(0, input.practiceUnsolved ?? nextUp.length);
   const practiceItem: PlanItem = {
     id: `${date}:practice:set`,
     kind: "PRACTICE", tier: "SHOULD",
@@ -512,6 +524,7 @@ export function buildTodayPlan(input: EngineInput): TodayPlan {
     track: "DSA",
     why: "Every learning topic ships with a practice requirement — Learn → Practice → Recall.",
     done: false,
+    ...(nextUp.length > 0 ? { practiceNextUp: nextUp, practiceUnsolved: unsolved } : {}),
   };
 
   // ---- tier assignment with capacity fitting (3–5 majors, 5–10 subtasks) ----

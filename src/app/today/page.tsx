@@ -22,6 +22,7 @@ interface PlanItem {
   refType?: string; refId?: string; subjectName?: string; topicName?: string;
   why: string; done: boolean;
   pyqTarget?: number; pyqDone?: number; movedFrom?: string;
+  practiceNextUp?: string[]; practiceUnsolved?: number;
   block?: string; track?: string; priority?: string; difficulty?: string;
   actualMinutes?: number; remainingMinutes?: number; completionPercent?: number;
   carryOverCount?: number; sourceDate?: string | null;
@@ -385,6 +386,15 @@ export default function TodayPage() {
                               <> · <Link href="/gate/questions" className="font-bold text-accent hover:underline">log PYQs</Link></>
                             ) : ""}
                           </span>
+                          {s.kind === "PRACTICE" && (s.practiceNextUp ?? []).length > 0 && (
+                            <span className="type-metadata block">
+                              Next: {(s.practiceNextUp ?? []).join(" · ")}
+                              {(s.practiceUnsolved ?? 0) > (s.practiceNextUp ?? []).length
+                                ? ` · +${(s.practiceUnsolved ?? 0) - (s.practiceNextUp ?? []).length} more`
+                                : ""}
+                              {" · "}<Link href="/practice" className="font-bold text-accent hover:underline">log solves</Link>
+                            </span>
+                          )}
                         </span>
                       </label>
                     </li>
